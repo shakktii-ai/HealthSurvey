@@ -2,16 +2,38 @@
   "name": "family-health-survey",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "scripts": {
     "dev": "next dev",
+    "dev:webpack": "next dev --webpack",
+    "clean": "node -e \"try { fs.rmSync('.next', { recursive: true, force: true }) } catch {}\"",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "seed:admin": "node scripts/init-admin.js",
+    "seed:master": "node scripts/seed-master-data.js",
+    "seed:questionnaire": "node scripts/seed-questionnaire.js",
+    "test:auth": "node scripts/test-auth.js",
+    "test:phase02": "node scripts/test-phase02.js",
+    "test:phase03": "node scripts/test-phase03.js",
+    "test:phase04": "node scripts/test-phase04.js",
+    "test:phase05": "node scripts/test-phase05.js",
+    "test:phase06": "node scripts/test-phase06.js",
+    "test:phase07": "node scripts/test-phase07.js",
+    "test:phase08": "node scripts/test-phase08.js",
+    "test:workflow": "node scripts/test-workflow.js",
+    "test:qb": "node scripts/test-question-bank.js",
+    "test:cleanup": "node scripts/test-cleanup-dashboard.js",
+    "test:bulk-import": "node scripts/test-bulk-import.js"
   },
   "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "exceljs": "^4.4.0",
+    "mongoose": "^9.11.2",
     "next": "16.4.2",
     "react": "19.3.0",
-    "react-dom": "19.3.0"
+    "react-dom": "19.3.0",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@tailwindcss/turbopack": "^4",
