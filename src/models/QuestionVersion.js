@@ -98,6 +98,7 @@ const QuestionVersionSchema = new mongoose.Schema(
         "date",
         "dropdown",
         "rating_scale",
+        "image",
       ],
       required: true,
     },
@@ -177,8 +178,10 @@ QuestionVersionSchema.methods.toSafeObject = function () {
   };
 };
 
-const QuestionVersion =
-  mongoose.models.QuestionVersion ||
-  mongoose.model("QuestionVersion", QuestionVersionSchema);
+if (mongoose.models && mongoose.models.QuestionVersion) {
+  delete mongoose.models.QuestionVersion;
+}
+
+const QuestionVersion = mongoose.model("QuestionVersion", QuestionVersionSchema);
 
 export default QuestionVersion;

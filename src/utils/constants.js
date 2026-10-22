@@ -37,6 +37,7 @@ export const ANSWER_TYPES = {
   DATE: "date",
   DROPDOWN: "dropdown",
   RATING_SCALE: "rating_scale",
+  IMAGE: "image",
 };
 
 export const ANSWER_TYPE_LABELS = {
@@ -49,6 +50,7 @@ export const ANSWER_TYPE_LABELS = {
   date: "Date",
   dropdown: "Dropdown",
   rating_scale: "Rating scale",
+  image: "Image with Geotag",
 };
 
 export const QUESTION_STATUSES = {

@@ -21,6 +21,8 @@ import {
   CalendarIcon,
   ActivityIcon,
   FolderIcon,
+  CameraIcon,
+  UploadIcon,
 } from "@/components/common/Icons";
 import { shouldDisplayQuestion } from "@/utils/conditionEvaluator";
 
@@ -47,6 +49,10 @@ export default function SurveyExecutionForm({ taskId, taskType = "family", categ
   const [consentNotes, setConsentNotes] = useState("");
   const [language, setLanguage] = useState("en"); // 'en' | 'te'
   const [respondentName, setRespondentName] = useState("");
+
+  // Image Upload State
+  const [uploadingImageCode, setUploadingImageCode] = useState(null);
+  const [uploadStatusMsg, setUploadStatusMsg] = useState("");
 
   // Actions & Progress State
   const [savingDraft, setSavingDraft] = useState(false);
@@ -123,6 +129,69 @@ export default function SurveyExecutionForm({ taskId, taskType = "family", categ
       updated = [...current, optValue];
     }
     handleAnswerChange(questionCode, updated);
+  };
+
+  // Handle Geotagged Image Capture & Cloudinary Upload
+  const handleImageCapture = async (questionCode, file) => {
+    if (!file) return;
+    try {
+      setUploadingImageCode(questionCode);
+      setUploadStatusMsg("Acquiring GPS location...");
+
+      let coords = null;
+      if (typeof window !== "undefined" && "geolocation" in navigator) {
+        try {
+          const pos = await new Promise((resolve, reject) => {
+            navigator.geolocation.getCurrentPosition(resolve, reject, {
+              enableHighAccuracy: true,
+              timeout: 10000,
+              maximumAge: 60000,
+            });
+          });
+          coords = {
+            latitude: pos.coords.latitude,
+            longitude: pos.coords.longitude,
+            accuracy: pos.coords.accuracy,
+          };
+        } catch (geoErr) {
+          console.warn("GPS acquisition note:", geoErr.message);
+        }
+      }
+
+      setUploadStatusMsg("Uploading to Cloudinary...");
+
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("questionCode", questionCode);
+      if (coords) {
+        formData.append("latitude", coords.latitude);
+        formData.append("longitude", coords.longitude);
+        formData.append("accuracy", coords.accuracy);
+      }
+
+      const res = await fetch("/api/upload/image", {
+        method: "POST",
+        body: formData,
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Failed to upload image to Cloudinary");
+      }
+
+      handleAnswerChange(questionCode, {
+        url: data.url,
+        publicId: data.publicId,
+        geotag: data.geotag,
+      });
+      setUploadStatusMsg("");
+    } catch (err) {
+      console.error("Image upload failed:", err);
+      setValidationError(`Image upload error for ${questionCode}: ${err.message}`);
+    } finally {
+      setUploadingImageCode(null);
+      setUploadStatusMsg("");
+    }
   };
 
   // Save Draft

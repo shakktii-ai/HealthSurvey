@@ -403,17 +403,51 @@ export default function SurveyResponseInspector({ responseId }) {
                     </div>
                   </div>
 
-                  <div className="pt-1.5 border-t border-slate-200/60 flex items-center justify-between">
-                    <span className="text-slate-500 font-semibold text-[11px]">Recorded Value:</span>
-                    <span className="font-bold text-slate-900 bg-white px-3 py-1 rounded-lg border border-slate-200 shadow-2xs">
-                      {Array.isArray(ans.value)
-                        ? ans.value.join(", ")
-                        : ans.value === true
-                        ? "Yes"
-                        : ans.value === false
-                        ? "No"
-                        : String(ans.value ?? "N/A")}
-                    </span>
+                  <div className="pt-1.5 border-t border-slate-200/60">
+                    <span className="text-slate-500 font-semibold text-[11px] block mb-1">Recorded Value:</span>
+                    {ans.answerType === "image" || (ans.value && typeof ans.value === "object" && ans.value.url) ? (
+                      <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200 space-y-2">
+                        <div className="relative rounded-lg overflow-hidden border border-slate-200 bg-slate-900 max-h-48 w-full sm:w-64 flex items-center justify-center">
+                          <a href={ans.value?.url || ans.value} target="_blank" rel="noreferrer" className="block w-full h-full">
+                            <img
+                              src={ans.value?.url || ans.value}
+                              alt="Survey Evidence"
+                              className="max-h-48 w-full object-contain hover:opacity-95 transition"
+                            />
+                          </a>
+                        </div>
+                        {ans.value?.geotag && (
+                          <div className="text-[11px] text-slate-600 flex flex-wrap items-center gap-2 pt-1 border-t border-slate-200/60">
+                            <span className="font-semibold text-emerald-700">
+                              ?? GPS: {ans.value.geotag.latitude?.toFixed(5)}, {ans.value.geotag.longitude?.toFixed(5)}
+                            </span>
+                            {ans.value.geotag.accuracy && (
+                              <span className="text-slate-400">
+                                (±{Math.round(ans.value.geotag.accuracy)}m)
+                              </span>
+                            )}
+                            <a
+                              href={`https://www.google.com/maps?q=${ans.value.geotag.latitude},${ans.value.geotag.longitude}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-blue-600 hover:underline font-semibold ml-auto"
+                            >
+                              Open in Maps ?
+                            </a>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="font-bold text-slate-900 bg-white px-3 py-1 rounded-lg border border-slate-200 shadow-2xs inline-block">
+                        {Array.isArray(ans.value)
+                          ? ans.value.join(", ")
+                          : ans.value === true
+                          ? "Yes"
+                          : ans.value === false
+                          ? "No"
+                          : String(ans.value ?? "N/A")}
+                      </span>
+                    )}
                   </div>
                 </div>
               ))

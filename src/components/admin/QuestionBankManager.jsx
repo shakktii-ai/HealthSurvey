@@ -1376,6 +1376,18 @@ export default function QuestionBankManager() {
                     ))}
                   </div>
                 )}
+
+                {previewQuestion.answerType === "image" && (
+                  <div className="border-2 border-dashed border-emerald-300 rounded-xl p-5 text-center bg-emerald-50/50">
+                    <div className="w-10 h-10 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto mb-2">
+                      <FolderIcon className="w-5 h-5" />
+                    </div>
+                    <span className="font-bold text-xs text-slate-800 block">Camera Capture & Geotag Photo Input</span>
+                    <p className="text-[11px] text-slate-500 mt-1">
+                      Field worker captures photo with live GPS Geotag coordinates, uploaded securely to Cloudinary.
+                    </p>
+                  </div>
+                )}
               </div>
 
               {/* Conditional Display Simulator (if question has conditions) */}

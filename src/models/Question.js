@@ -96,6 +96,7 @@ const QuestionSchema = new mongoose.Schema(
           "date",
           "dropdown",
           "rating_scale",
+          "image",
         ],
         message: "{VALUE} is not a valid answer type",
       },
@@ -192,7 +193,10 @@ QuestionSchema.methods.toSafeObject = function () {
   };
 };
 
-const Question =
-  mongoose.models.Question || mongoose.model("Question", QuestionSchema);
+if (mongoose.models && mongoose.models.Question) {
+  delete mongoose.models.Question;
+}
+
+const Question = mongoose.model("Question", QuestionSchema);
 
 export default Question;
