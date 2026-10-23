@@ -10,6 +10,7 @@ export default function BulkImportManager() {
   const [file, setFile] = useState(null);
   const [isValidating, setIsValidating] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
+  const [importProgress, setImportProgress] = useState(null);
   const [isExportingErrors, setIsExportingErrors] = useState(false);
   const [validationData, setValidationData] = useState(null);
   const [importReport, setImportReport] = useState(null);
@@ -83,23 +84,150 @@ export default function BulkImportManager() {
   const handleConfirmImport = async () => {
     if (!validationData || !validationData.previewRows) return;
 
+    const allRows = validationData.previewRows;
+    const validRows = allRows.filter((r) => r.importStatus === "valid");
+
+    if (validRows.length === 0) {
+      setErrorMessage("No valid rows found to import.");
+      setShowConfirmModal(false);
+      return;
+    }
+
     setIsImporting(true);
     setShowConfirmModal(false);
     setErrorMessage("");
+    setImportProgress({
+      current: 0,
+      total: validRows.length,
+      percent: 0,
+      label: "Preparing chunked batches...",
+    });
 
     try {
-      const res = await fetch("/api/admin/bulk-import/execute", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ previewRows: validationData.previewRows }),
-      });
+      // Chunk into batches in strict topological dependency order:
+      // 1. Projects, 2. Mandals, 3. Facilities, 4. Villages, 5. Stakeholders, 6. Families
+      const BATCH_SIZE = 150; // Keep payload ~100KB, well below Vercel's 4.5MB limit
+      const order = ["Project", "Mandal", "Facility", "Village", "Stakeholder", "Family"];
+      const batches = [];
 
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || "Failed to execute bulk import.");
+      for (const type of order) {
+        const typeRows = validRows.filter((r) => r.entityType === type);
+        for (let i = 0; i < typeRows.length; i += BATCH_SIZE) {
+          batches.push({
+            type,
+            rows: typeRows.slice(i, i + BATCH_SIZE),
+          });
+        }
       }
 
-      setImportReport(data.report);
+      const aggregatedReport = {
+        totalRows: allRows.length,
+        successfullyImported: 0,
+        duplicateOrSkippedRows: allRows.filter((r) => r.importStatus === "duplicate_skipped").length,
+        invalidRows: allRows.filter((r) => r.importStatus === "invalid").length,
+        failedImports: 0,
+        byType: {
+          Project: { total: 0, imported: 0, invalid: 0, duplicateOrSkipped: 0, failed: 0 },
+          Mandal: { total: 0, imported: 0, invalid: 0, duplicateOrSkipped: 0, failed: 0 },
+          Facility: { total: 0, imported: 0, invalid: 0, duplicateOrSkipped: 0, failed: 0 },
+          Village: { total: 0, imported: 0, invalid: 0, duplicateOrSkipped: 0, failed: 0 },
+          Stakeholder: { total: 0, imported: 0, invalid: 0, duplicateOrSkipped: 0, failed: 0 },
+          Family: { total: 0, imported: 0, invalid: 0, duplicateOrSkipped: 0, failed: 0 },
+        },
+        importedItems: [],
+        errors: [],
+      };
+
+      // Initialize totals from validationData
+      for (const type of order) {
+        if (aggregatedReport.byType[type]) {
+          aggregatedReport.byType[type].total = allRows.filter((r) => r.entityType === type).length;
+          aggregatedReport.byType[type].invalid = allRows.filter((r) => r.entityType === type && r.importStatus === "invalid").length;
+          aggregatedReport.byType[type].duplicateOrSkipped = allRows.filter((r) => r.entityType === type && r.importStatus === "duplicate_skipped").length;
+        }
+      }
+
+      let processedCount = 0;
+
+      for (let bIndex = 0; bIndex < batches.length; bIndex++) {
+        const batch = batches[bIndex];
+        const batchNum = bIndex + 1;
+        const totalBatches = batches.length;
+
+        setImportProgress({
+          current: processedCount,
+          total: validRows.length,
+          percent: Math.round((processedCount / validRows.length) * 100),
+          label: `Importing ${batch.type}s: batch ${batchNum}/${totalBatches} (${batch.rows.length} records)...`,
+        });
+
+        // Strip heavy non-essential fields to guarantee light payload
+        const strippedRows = batch.rows.map((r) => ({
+          rowNumber: r.rowNumber,
+          entityType: r.entityType,
+          code: r.code,
+          name: r.name,
+          parentCode: r.parentCode,
+          facilityCode: r.facilityCode,
+          status: r.status,
+          importStatus: r.importStatus,
+          raw: r.raw,
+          resolvedHierarchy: r.resolvedHierarchy,
+          errors: r.errors || [],
+          warnings: r.warnings || [],
+        }));
+
+        const res = await fetch("/api/admin/bulk-import/execute", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ previewRows: strippedRows }),
+        });
+
+        if (!res.ok) {
+          const errText = await res.text();
+          let parsedErr = "Failed to execute batch import.";
+          try {
+            const errJson = JSON.parse(errText);
+            parsedErr = errJson.error || parsedErr;
+          } catch {
+            parsedErr = errText || parsedErr;
+          }
+          throw new Error(`Batch ${batchNum}/${totalBatches} (${batch.type}) failed: ${parsedErr}`);
+        }
+
+        const data = await res.json();
+        if (!data.success) {
+          throw new Error(data.error || `Batch ${batchNum} failed.`);
+        }
+
+        // Aggregate batch report
+        const rep = data.report || {};
+        aggregatedReport.successfullyImported += rep.successfullyImported || 0;
+        aggregatedReport.failedImports += rep.failedImports || 0;
+
+        if (rep.byType && rep.byType[batch.type]) {
+          aggregatedReport.byType[batch.type].imported += rep.byType[batch.type].imported || 0;
+          aggregatedReport.byType[batch.type].failed += rep.byType[batch.type].failed || 0;
+        }
+
+        if (Array.isArray(rep.importedItems)) {
+          aggregatedReport.importedItems.push(...rep.importedItems);
+        }
+        if (Array.isArray(rep.errors)) {
+          aggregatedReport.errors.push(...rep.errors);
+        }
+
+        processedCount += batch.rows.length;
+      }
+
+      setImportProgress({
+        current: validRows.length,
+        total: validRows.length,
+        percent: 100,
+        label: "Finalizing import...",
+      });
+
+      setImportReport(aggregatedReport);
       setValidationData(null);
       setFile(null);
       if (fileInputRef.current) fileInputRef.current.value = "";
@@ -107,8 +235,10 @@ export default function BulkImportManager() {
       setErrorMessage(err.message || "Failed to execute bulk import.");
     } finally {
       setIsImporting(false);
+      setImportProgress(null);
     }
   };
+
 
   const handleExportErrors = async (errorsToExport) => {
     if (!errorsToExport || errorsToExport.length === 0) return;
@@ -311,8 +441,39 @@ export default function BulkImportManager() {
         </div>
       </Card>
 
+      {/* Real-time Chunked Import Progress Bar */}
+      {importProgress && (
+        <Card className="border-emerald-300 bg-gradient-to-r from-emerald-50 to-teal-50 p-6 shadow-md border-2 animate-pulse-none">
+          <div className="space-y-3">
+            <div className="flex items-center justify-between text-sm">
+              <span className="font-bold text-emerald-950 flex items-center gap-2">
+                <svg className="animate-spin h-5 w-5 text-emerald-600" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                </svg>
+                <span>Bulk Import in Progress (Resilient Chunked Execution)</span>
+              </span>
+              <span className="font-extrabold text-emerald-900 text-base">{importProgress.percent}%</span>
+            </div>
+
+            <div className="w-full bg-emerald-200/80 rounded-full h-3.5 overflow-hidden p-0.5 border border-emerald-300">
+              <div
+                className="bg-emerald-600 h-full rounded-full transition-all duration-300 ease-out"
+                style={{ width: `${importProgress.percent}%` }}
+              />
+            </div>
+
+            <div className="flex items-center justify-between text-xs text-emerald-800 font-medium">
+              <span>{importProgress.label}</span>
+              <span>{importProgress.current} / {importProgress.total} records imported</span>
+            </div>
+          </div>
+        </Card>
+      )}
+
       {/* Validation & Preview Section */}
-      {validationData && (
+      {validationData && !importProgress && (
+
         <div className="space-y-6">
           {/* Summary Stats Cards */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

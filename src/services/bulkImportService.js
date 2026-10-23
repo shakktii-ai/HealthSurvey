@@ -999,55 +999,77 @@ export async function executeBulkImport({ previewRows }, actorUser) {
   const createdFacilityIds = new Map();
   const createdVillageIds = new Map();
   const createdStakeholderIds = new Map();
+  const mandalDocsCache = new Map();
+
+  async function getMandalDoc(mandalId) {
+    if (!mandalId) return null;
+    const key = mandalId.toString();
+    if (mandalDocsCache.has(key)) return mandalDocsCache.get(key);
+    const doc = await Mandal.findById(mandalId).lean();
+    if (doc) mandalDocsCache.set(key, doc);
+    return doc;
+  }
 
   // Helper to resolve MongoDB ObjectId for Project
   async function resolveProjectId(row) {
-    if (row.resolvedHierarchy.projectId) return row.resolvedHierarchy.projectId;
-    if (row.resolvedHierarchy.project?.id) return row.resolvedHierarchy.project.id;
-    const code = row.resolvedHierarchy.projectCode || row.resolvedHierarchy.project?.code;
+    if (row.resolvedHierarchy?.projectId) return row.resolvedHierarchy.projectId;
+    if (row.resolvedHierarchy?.project?.id) return row.resolvedHierarchy.project.id;
+    const code = row.resolvedHierarchy?.projectCode || row.resolvedHierarchy?.project?.code;
     if (code && createdProjectIds.has(code)) return createdProjectIds.get(code);
     if (code) {
       const p = await Project.findOne({ code }).lean();
-      if (p) return p._id.toString();
+      if (p) {
+        createdProjectIds.set(code, p._id.toString());
+        return p._id.toString();
+      }
     }
     return null;
   }
 
   // Helper to resolve MongoDB ObjectId for Mandal
   async function resolveMandalId(row) {
-    if (row.resolvedHierarchy.mandalId) return row.resolvedHierarchy.mandalId;
-    if (row.resolvedHierarchy.mandal?.id) return row.resolvedHierarchy.mandal.id;
-    const code = row.resolvedHierarchy.mandalCode || row.resolvedHierarchy.mandal?.code || row.parentCode;
+    if (row.resolvedHierarchy?.mandalId) return row.resolvedHierarchy.mandalId;
+    if (row.resolvedHierarchy?.mandal?.id) return row.resolvedHierarchy.mandal.id;
+    const code = row.resolvedHierarchy?.mandalCode || row.resolvedHierarchy?.mandal?.code || row.parentCode;
     if (code && createdMandalIds.has(code)) return createdMandalIds.get(code);
     if (code) {
       const m = await Mandal.findOne({ code }).lean();
-      if (m) return m._id.toString();
+      if (m) {
+        createdMandalIds.set(code, m._id.toString());
+        return m._id.toString();
+      }
     }
     return null;
   }
 
   // Helper to resolve MongoDB ObjectId for Facility
   async function resolveFacilityId(row) {
-    if (row.resolvedHierarchy.facilityId) return row.resolvedHierarchy.facilityId;
-    if (row.resolvedHierarchy.facility?.id) return row.resolvedHierarchy.facility.id;
-    const code = row.resolvedHierarchy.facilityCode || row.resolvedHierarchy.facility?.code || row.facilityCode;
+    if (row.resolvedHierarchy?.facilityId) return row.resolvedHierarchy.facilityId;
+    if (row.resolvedHierarchy?.facility?.id) return row.resolvedHierarchy.facility.id;
+    const code = row.resolvedHierarchy?.facilityCode || row.resolvedHierarchy?.facility?.code || row.facilityCode;
     if (code && createdFacilityIds.has(code)) return createdFacilityIds.get(code);
     if (code) {
       const f = await Facility.findOne({ code }).lean();
-      if (f) return f._id.toString();
+      if (f) {
+        createdFacilityIds.set(code, f._id.toString());
+        return f._id.toString();
+      }
     }
     return null;
   }
 
   // Helper to resolve MongoDB ObjectId for Village
   async function resolveVillageId(row) {
-    if (row.resolvedHierarchy.villageId) return row.resolvedHierarchy.villageId;
-    if (row.resolvedHierarchy.village?.id) return row.resolvedHierarchy.village.id;
-    const code = row.resolvedHierarchy.villageCode || row.resolvedHierarchy.village?.code || row.parentCode;
+    if (row.resolvedHierarchy?.villageId) return row.resolvedHierarchy.villageId;
+    if (row.resolvedHierarchy?.village?.id) return row.resolvedHierarchy.village.id;
+    const code = row.resolvedHierarchy?.villageCode || row.resolvedHierarchy?.village?.code || row.parentCode;
     if (code && createdVillageIds.has(code)) return createdVillageIds.get(code);
     if (code) {
       const v = await Village.findOne({ code }).lean();
-      if (v) return v._id.toString();
+      if (v) {
+        createdVillageIds.set(code, v._id.toString());
+        return v._id.toString();
+      }
     }
     return null;
   }
@@ -1143,7 +1165,7 @@ export async function executeBulkImport({ previewRows }, actorUser) {
         throw new Error(`Unable to resolve associated Mandal ID for code '${row.parentCode}'`);
       }
 
-      const mandalDoc = await Mandal.findById(mandalId).lean();
+      const mandalDoc = await getMandalDoc(mandalId);
       const projectId = mandalDoc ? mandalDoc.projectId.toString() : await resolveProjectId(row);
 
       const facility = await Facility.create({
@@ -1191,7 +1213,7 @@ export async function executeBulkImport({ previewRows }, actorUser) {
       if (!mandalId) throw new Error(`Unable to resolve associated Mandal ID for code '${row.parentCode}'`);
       if (!facilityId) throw new Error(`Unable to resolve associated Facility ID for code '${row.facilityCode}'`);
 
-      const mandalDoc = await Mandal.findById(mandalId).lean();
+      const mandalDoc = await getMandalDoc(mandalId);
       const projectId = mandalDoc ? mandalDoc.projectId.toString() : await resolveProjectId(row);
 
       const village = await Village.create({
@@ -1236,7 +1258,7 @@ export async function executeBulkImport({ previewRows }, actorUser) {
       const mandalId = await resolveMandalId(row);
       if (!mandalId) throw new Error(`Unable to resolve associated Mandal ID for code '${row.parentCode}'`);
 
-      const mandalDoc = await Mandal.findById(mandalId).lean();
+      const mandalDoc = await getMandalDoc(mandalId);
       const projectId = mandalDoc ? mandalDoc.projectId.toString() : await resolveProjectId(row);
       const facilityId = row.facilityCode ? await resolveFacilityId(row) : null;
 
