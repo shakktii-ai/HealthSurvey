@@ -152,7 +152,7 @@ export default function SurveyResponseInspector({ responseId }) {
             href="/admin/survey-responses"
             className="text-xs font-semibold text-slate-500 hover:text-slate-800"
           >
-            ← Back to Submissions
+            â Back to Submissions
           </Link>
         </div>
 
@@ -191,14 +191,14 @@ export default function SurveyResponseInspector({ responseId }) {
       {error && (
         <div className="p-3.5 rounded-xl border border-rose-200 bg-rose-50 text-rose-800 text-xs flex items-center justify-between">
           <span>{error}</span>
-          <button onClick={() => setError("")} className="text-rose-500 hover:text-rose-700 font-bold">×</button>
+          <button onClick={() => setError("")} className="text-rose-500 hover:text-rose-700 font-bold">Ã</button>
         </div>
       )}
 
       {successMsg && (
         <div className="p-3.5 rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-800 text-xs flex items-center justify-between">
           <span>{successMsg}</span>
-          <button onClick={() => setSuccessMsg("")} className="text-emerald-500 hover:text-emerald-700 font-bold">×</button>
+          <button onClick={() => setSuccessMsg("")} className="text-emerald-500 hover:text-emerald-700 font-bold">Ã</button>
         </div>
       )}
 
@@ -220,7 +220,7 @@ export default function SurveyResponseInspector({ responseId }) {
           </div>
           <div className="pt-1">
             <Link href="/admin/data-quality" className="text-emerald-800 font-semibold underline text-[11px]">
-              View all issues in Data Quality Manager →
+              View all issues in Data Quality Manager â
             </Link>
           </div>
         </div>
@@ -423,7 +423,7 @@ export default function SurveyResponseInspector({ responseId }) {
                             </span>
                             {ans.value.geotag.accuracy && (
                               <span className="text-slate-400">
-                                (�{Math.round(ans.value.geotag.accuracy)}m)
+                                (±{Math.round(ans.value.geotag.accuracy)}m)
                               </span>
                             )}
                             <a
@@ -554,7 +554,7 @@ export default function SurveyResponseInspector({ responseId }) {
                     onClick={() => setConfirmAmendStep(true)}
                     className="bg-emerald-600 hover:bg-emerald-700"
                   >
-                    Next: Review & Confirm →
+                    Next: Review & Confirm â
                   </Button>
                 </div>
               </>
@@ -581,7 +581,7 @@ export default function SurveyResponseInspector({ responseId }) {
                     onClick={() => setConfirmAmendStep(false)}
                     disabled={submittingAmend}
                   >
-                    ← Back to Edit
+                    â Back to Edit
                   </Button>
                   <Button
                     variant="primary"
