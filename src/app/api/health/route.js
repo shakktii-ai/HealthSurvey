@@ -29,14 +29,26 @@ export async function GET() {
         message: readyState === 1 ? "Connected to MongoDB Atlas" : "Connecting",
       };
     } catch (error) {
+      const isLocalhost = process.env.MONGODB_URI?.includes("127.0.0.1") || process.env.MONGODB_URI?.includes("localhost");
+      let hint = undefined;
+      if (isLocalhost && process.env.NODE_ENV === "production") {
+        hint = "MONGODB_URI is set to localhost on Vercel production. Update Vercel Project Settings > Environment Variables with your MongoDB Atlas cloud URI.";
+      } else if (error.message?.includes("timed out") || error.message?.includes("Server selection") || error.message?.includes("buffering timed out")) {
+        hint = "Connection timed out. In MongoDB Atlas, verify Network Access has 0.0.0.0/0 (Allow access from anywhere) enabled so Vercel serverless IPs can reach it.";
+      } else if (error.message?.includes("bad auth") || error.message?.includes("Authentication failed")) {
+        hint = "MongoDB credentials rejected. Verify database username and password in MONGODB_URI.";
+      }
+
       dbStatus = {
         configured: true,
         connected: false,
         message: "Failed to connect to MongoDB",
-        // Only return generic error message without exposing connection credentials
         details: error.message?.includes("ENOTFOUND")
           ? "Host not reachable"
+          : error.message?.includes("ECONNREFUSED")
+          ? "Connection refused"
           : "Database connection failed",
+        hint,
       };
     }
   }

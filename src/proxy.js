@@ -79,28 +79,21 @@ export async function proxy(request) {
 
   const session = await verifyTokenEdge(token, secret);
 
-  const isAuthRoute = pathname === "/login";
   const isAdminRoute = pathname.startsWith("/admin");
   const isFieldRoute = pathname.startsWith("/field");
   const isDonorRoute = pathname.startsWith("/donor");
-
-  // If already authenticated and visiting /login, redirect to their role's dashboard
-  if (isAuthRoute && session) {
-    const roleRedirects = {
-      superadmin: "/admin/dashboard",
-      field_worker: "/field/dashboard",
-      donor: "/donor/dashboard",
-    };
-    const target = roleRedirects[session.role] || "/";
-    return NextResponse.redirect(new URL(target, request.url));
-  }
 
   // Protected route check
   if (isAdminRoute || isFieldRoute || isDonorRoute) {
     if (!session) {
       const loginUrl = new URL("/login", request.url);
       loginUrl.searchParams.set("callbackUrl", pathname);
-      return NextResponse.redirect(loginUrl);
+      const response = NextResponse.redirect(loginUrl);
+      // Immediately clear invalid/expired/stale cookies to prevent redirect loops
+      if (token) {
+        response.cookies.delete(COOKIE_NAME);
+      }
+      return response;
     }
 
     // Role-based authorization rules (safe fallbacks without redirect loops)
@@ -111,6 +104,9 @@ export async function proxy(request) {
           : session.role === "field_worker"
           ? "/field/dashboard"
           : "/";
+      if (pathname === target) {
+        return NextResponse.next();
+      }
       const fallbackUrl = new URL(target, request.url);
       fallbackUrl.searchParams.set("unauthorized", "1");
       return NextResponse.redirect(fallbackUrl);
@@ -118,6 +114,9 @@ export async function proxy(request) {
 
     if (isFieldRoute && session.role !== "field_worker" && session.role !== "superadmin") {
       const target = session.role === "donor" ? "/donor/dashboard" : "/";
+      if (pathname === target) {
+        return NextResponse.next();
+      }
       const fallbackUrl = new URL(target, request.url);
       fallbackUrl.searchParams.set("unauthorized", "1");
       return NextResponse.redirect(fallbackUrl);
@@ -125,6 +124,9 @@ export async function proxy(request) {
 
     if (isDonorRoute && session.role !== "donor" && session.role !== "superadmin") {
       const target = session.role === "field_worker" ? "/field/dashboard" : "/";
+      if (pathname === target) {
+        return NextResponse.next();
+      }
       const fallbackUrl = new URL(target, request.url);
       fallbackUrl.searchParams.set("unauthorized", "1");
       return NextResponse.redirect(fallbackUrl);
@@ -137,5 +139,6 @@ export async function proxy(request) {
 export const middleware = proxy;
 
 export const config = {
-  matcher: ["/admin/:path*", "/field/:path*", "/donor/:path*", "/login"],
+  matcher: ["/admin/:path*", "/field/:path*", "/donor/:path*"],
 };
+

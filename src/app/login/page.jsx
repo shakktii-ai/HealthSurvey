@@ -31,9 +31,24 @@ function LoginForm() {
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
+  const unauthorized = searchParams.get("unauthorized");
+  const [resetMessage, setResetMessage] = useState("");
+
+  async function handleClearSession() {
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+      setResetMessage("Browser session cookies cleared successfully.");
+      setErrorMessage("");
+      router.replace("/login");
+    } catch {
+      setResetMessage("Cleared local session.");
+    }
+  }
+
   async function handleSubmit(e) {
     e.preventDefault();
     setErrorMessage("");
+    setResetMessage("");
 
     if (!email || !password) {
       setErrorMessage("Please enter both email and password");
@@ -78,6 +93,30 @@ function LoginForm() {
         </CardDescription>
       </CardHeader>
       <CardContent>
+        {/* Unauthorized notice */}
+        {unauthorized && (
+          <div
+            role="alert"
+            className="mb-4 flex items-start gap-2.5 rounded-lg bg-amber-50 p-3 text-xs text-amber-800 border border-amber-200"
+          >
+            <AlertCircleIcon className="w-4 h-4 shrink-0 mt-0.5 text-amber-600" />
+            <div>
+              <span className="font-semibold block">Access Restricted</span>
+              <span>Your previous session lacked permission for that page or has expired. Please sign in with an authorized account.</span>
+            </div>
+          </div>
+        )}
+
+        {/* Success message banner */}
+        {resetMessage && (
+          <div
+            role="status"
+            className="mb-4 flex items-start gap-2.5 rounded-lg bg-emerald-50 p-3 text-xs text-emerald-800 border border-emerald-200"
+          >
+            <span className="font-medium">{resetMessage}</span>
+          </div>
+        )}
+
         {/* Error banner */}
         {errorMessage && (
           <div
@@ -90,6 +129,7 @@ function LoginForm() {
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4" noValidate>
+
           {/* Email Input */}
           <div className="space-y-1.5">
             <label
@@ -189,6 +229,17 @@ function LoginForm() {
               "Sign In"
             )}
           </Button>
+
+          {/* Clear cookies / reset helper */}
+          <div className="pt-2 text-center">
+            <button
+              type="button"
+              onClick={handleClearSession}
+              className="text-[11px] text-slate-400 hover:text-slate-600 underline focus:outline-none"
+            >
+              Having redirect or cookie issues? Click here to reset session
+            </button>
+          </div>
         </form>
       </CardContent>
     </Card>

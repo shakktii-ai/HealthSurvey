@@ -28,8 +28,8 @@ export async function connectToDatabase() {
     );
   }
 
-  // If a cached connection is already established, reuse it
-  if (cached.conn) {
+  // If a cached connection is already established and active, reuse it
+  if (cached.conn && cached.conn.connection.readyState === 1) {
     return cached.conn;
   }
 
@@ -38,7 +38,9 @@ export async function connectToDatabase() {
     const opts = {
       bufferCommands: false,
       maxPoolSize: 10,
-      serverSelectionTimeoutMS: 5000,
+      serverSelectionTimeoutMS: 8000,
+      connectTimeoutMS: 10000,
+      socketTimeoutMS: 45000,
     };
 
     cached.promise = mongoose
@@ -49,6 +51,7 @@ export async function connectToDatabase() {
       .catch((error) => {
         // Reset promise on error so subsequent requests can retry
         cached.promise = null;
+        cached.conn = null;
         throw new Error(`MongoDB connection failed: ${error.message}`);
       });
   }
@@ -57,6 +60,7 @@ export async function connectToDatabase() {
     cached.conn = await cached.promise;
   } catch (error) {
     cached.promise = null;
+    cached.conn = null;
     throw error;
   }
 

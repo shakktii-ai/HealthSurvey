@@ -25,3 +25,27 @@ export async function POST() {
     );
   }
 }
+
+export async function GET(request) {
+  try {
+    const cookieStore = await cookies();
+    cookieStore.set(COOKIE_NAME, "", {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/",
+      maxAge: 0,
+    });
+  } catch (error) {
+    console.error("Error clearing cookie on GET logout:", error);
+  }
+
+  const { searchParams } = new URL(request.url);
+  const callbackUrl = searchParams.get("callbackUrl");
+  const loginUrl = new URL("/login", request.url);
+  if (callbackUrl) {
+    loginUrl.searchParams.set("callbackUrl", callbackUrl);
+  }
+  return NextResponse.redirect(loginUrl);
+}
+
