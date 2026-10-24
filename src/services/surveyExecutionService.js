@@ -52,9 +52,14 @@ async function verifyTaskOwnership({ assignmentId = "", stakeholderTaskId = "" }
     task = await StakeholderTask.findById(stakeholderTaskId)
       .populate("project", "name code")
       .populate("surveyRound", "name code enableLightTouch status")
-      .populate("stakeholder", "fullName stakeholderType designation phone village mandal facility")
-      .populate("mandal", "name code")
-      .populate("facility", "name code");
+      .populate({
+        path: "stakeholder",
+        select: "fullName stakeholderType designation phone village mandal facility villageId",
+        populate: [
+          { path: "mandal", select: "name code" },
+          { path: "facility", select: "name code" },
+        ],
+      });
     taskType = "stakeholder";
   }
 
@@ -173,7 +178,12 @@ export async function getExecutionSurveyData(
       stakeholderType: stTypeFilter,
       isActive: true,
     };
-    const filterMandalId = task.mandal?._id || task.mandal || task.family?.mandal;
+    const filterMandalId =
+      task.mandal?._id ||
+      task.mandal ||
+      task.family?.mandal ||
+      task.stakeholder?.mandal?._id ||
+      task.stakeholder?.mandal;
     if (filterMandalId) {
       stQuery.mandal = filterMandalId;
     }
@@ -201,9 +211,18 @@ export async function getExecutionSurveyData(
       status: task.status,
       startedAt: task.startedAt,
       completedAt: task.completedAt,
-      mandalId: (task.mandal?._id || task.mandal || task.family?.mandal)?._id?.toString() || (task.mandal?._id || task.mandal || task.family?.mandal)?.toString() || "",
-      facilityId: (task.facility?._id || task.facility || task.family?.facility)?._id?.toString() || (task.facility?._id || task.facility || task.family?.facility)?.toString() || "",
-      villageId: (task.village?._id || task.village || task.family?.village)?._id?.toString() || (task.village?._id || task.village || task.family?.village)?.toString() || "",
+      mandalId:
+        (task.mandal?._id || task.mandal || task.family?.mandal || task.stakeholder?.mandal)?._id?.toString() ||
+        (task.mandal?._id || task.mandal || task.family?.mandal || task.stakeholder?.mandal)?.toString() ||
+        "",
+      facilityId:
+        (task.facility?._id || task.facility || task.family?.facility || task.stakeholder?.facility)?._id?.toString() ||
+        (task.facility?._id || task.facility || task.family?.facility || task.stakeholder?.facility)?.toString() ||
+        "",
+      villageId:
+        (task.village?._id || task.village || task.family?.village || task.stakeholder?.villageId || task.stakeholder?.village)?._id?.toString() ||
+        (task.village?._id || task.village || task.family?.village || task.stakeholder?.villageId || task.stakeholder?.village)?.toString() ||
+        "",
       family: task.family
         ? {
             id: task.family._id.toString(),
@@ -954,9 +973,10 @@ export async function updateSurveyStakeholder(
     );
 
     // If category is asha, link to family in catchment if applicable
-    if (task.category === "asha" && task.mandal) {
+    const mandalId = stakeholderDoc.mandal || task.mandal;
+    if (task.category === "asha" && mandalId) {
       await Family.updateMany(
-        { project: task.project, mandal: task.mandal, asha: null },
+        { project: task.project, mandal: mandalId, asha: null },
         { asha: stakeholderDoc._id }
       );
     }
