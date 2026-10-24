@@ -1,5 +1,26 @@
 import mongoose from "mongoose";
 
+// Pre-register all Mongoose models so that .populate() across references
+// never throws MissingSchemaError on serverless/cold-start executions.
+import "@/models/User";
+import "@/models/Project";
+import "@/models/Mandal";
+import "@/models/Facility";
+import "@/models/Village";
+import "@/models/Family";
+import "@/models/Stakeholder";
+import "@/models/StakeholderTask";
+import "@/models/Assignment";
+import "@/models/SurveyRound";
+import "@/models/Question";
+import "@/models/QuestionVersion";
+import "@/models/SurveyResponse";
+import "@/models/DataQualityScan";
+import "@/models/DataQualityIssue";
+import "@/models/DonorProjectAccess";
+import "@/models/AuditLog";
+import "@/models/Counter";
+
 /**
  * MongoDB Connection Handler using Mongoose.
  * 
