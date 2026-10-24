@@ -13,6 +13,7 @@ import {
   EditIcon,
   StarIcon,
   EyeIcon,
+  CloseIcon,
 } from "@/components/common/Icons";
 
 const CHARACTERISTICS_LABELS = {
@@ -74,6 +75,40 @@ export default function FamilyManager() {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [activeSection, setActiveSection] = useState("section-location");
+
+  function scrollToSection(sectionId) {
+    setActiveSection(sectionId);
+    const el = document.getElementById(sectionId);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }
+
+  // Prevent background scroll when any modal is open
+  useEffect(() => {
+    if (isFormOpen || duplicateWarning || viewingFamily) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [isFormOpen, duplicateWarning, viewingFamily]);
+
+  // Handle Escape key to dismiss modals
+  useEffect(() => {
+    function handleKeyDown(e) {
+      if (e.key === "Escape") {
+        if (duplicateWarning) setDuplicateWarning(null);
+        else if (viewingFamily) setViewingFamily(null);
+        else if (isFormOpen) setIsFormOpen(false);
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [duplicateWarning, viewingFamily, isFormOpen]);
 
   // Form Fields
   const [projectId, setProjectId] = useState("");
@@ -285,6 +320,7 @@ export default function FamilyManager() {
   function openCreateForm() {
     setEditingId(null);
     setDuplicateWarning(null);
+    setActiveSection("section-location");
     const defaultProjId = projects.length > 0 ? projects[0].id : "";
     setProjectId(defaultProjId);
 
@@ -332,6 +368,7 @@ export default function FamilyManager() {
   function openEditForm(family) {
     setEditingId(family.id);
     setDuplicateWarning(null);
+    setActiveSection("section-location");
 
     setProjectId(family.projectId || family.project?.id || "");
     setMandalId(family.mandalId || family.mandal?.id || "");
@@ -511,10 +548,10 @@ export default function FamilyManager() {
 
       {/* Control & Filter Bar */}
       <Card>
-        <CardContent className="p-4 sm:p-6 space-y-4">
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
+        <CardContent className="p-4 sm:p-6 space-y-3 sm:space-y-4">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 sm:gap-4">
             <div className="relative flex-1">
-              <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              <SearchIcon className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
               <input
                 type="text"
                 value={search}
@@ -522,20 +559,24 @@ export default function FamilyManager() {
                   setSearch(e.target.value);
                   setPage(1);
                 }}
-                placeholder="Search by Family Code (FAM-...), household head, or phone number..."
-                className="w-full rounded-xl border border-slate-200 bg-slate-50/50 pl-9 pr-4 py-2 text-sm text-slate-900 focus:bg-white focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 transition-all"
+                placeholder="Search by Family Code (FAM-...), household head, or phone..."
+                className="w-full rounded-xl border border-slate-200 bg-slate-50/70 pl-10 pr-4 py-2.5 text-base sm:text-sm text-slate-900 focus:bg-white focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 transition-all min-h-[44px] sm:min-h-[40px]"
               />
             </div>
-            <Button onClick={openCreateForm} variant="primary" className="flex items-center gap-2">
-              <PlusIcon className="w-4 h-4" />
+            <Button
+              onClick={openCreateForm}
+              variant="primary"
+              className="flex items-center justify-center gap-2 min-h-[44px] sm:min-h-[40px] px-5 font-bold shadow-md shadow-emerald-700/15 shrink-0 w-full sm:w-auto"
+            >
+              <PlusIcon className="w-4 h-4 stroke-[2.5]" />
               <span>Add Family</span>
             </Button>
           </div>
 
-          {/* Filters Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-6 gap-3 pt-2 border-t border-slate-100">
+          {/* Responsive Filters Grid (2 cols on mobile, 3 on tablet, 6 on desktop) */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 sm:gap-3 pt-3 border-t border-slate-100">
             <div>
-              <label className="block text-xs font-medium text-slate-500 mb-1">Project</label>
+              <label className="block text-[11px] font-medium text-slate-500 mb-1">Project</label>
               <select
                 value={projectFilter}
                 onChange={(e) => {
@@ -545,7 +586,7 @@ export default function FamilyManager() {
                   setVillageFilter("");
                   setPage(1);
                 }}
-                className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-700 focus:border-emerald-500 focus:outline-none"
+                className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-xs text-slate-700 focus:border-emerald-500 focus:outline-none min-h-[38px]"
               >
                 <option value="">All Projects</option>
                 {projects.map((p) => (
@@ -557,7 +598,7 @@ export default function FamilyManager() {
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-slate-500 mb-1">Mandal</label>
+              <label className="block text-[11px] font-medium text-slate-500 mb-1">Mandal</label>
               <select
                 value={mandalFilter}
                 onChange={(e) => {
@@ -566,7 +607,7 @@ export default function FamilyManager() {
                   setVillageFilter("");
                   setPage(1);
                 }}
-                className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-700 focus:border-emerald-500 focus:outline-none"
+                className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-xs text-slate-700 focus:border-emerald-500 focus:outline-none min-h-[38px]"
               >
                 <option value="">All Mandals</option>
                 {filterMandals.map((m) => (
@@ -578,7 +619,7 @@ export default function FamilyManager() {
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-slate-500 mb-1">Facility</label>
+              <label className="block text-[11px] font-medium text-slate-500 mb-1">Facility</label>
               <select
                 value={facilityFilter}
                 onChange={(e) => {
@@ -586,7 +627,7 @@ export default function FamilyManager() {
                   setVillageFilter("");
                   setPage(1);
                 }}
-                className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-700 focus:border-emerald-500 focus:outline-none"
+                className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-xs text-slate-700 focus:border-emerald-500 focus:outline-none min-h-[38px]"
               >
                 <option value="">All Facilities</option>
                 {filterFacilities.map((f) => (
@@ -598,14 +639,14 @@ export default function FamilyManager() {
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-slate-500 mb-1">Village</label>
+              <label className="block text-[11px] font-medium text-slate-500 mb-1">Village</label>
               <select
                 value={villageFilter}
                 onChange={(e) => {
                   setVillageFilter(e.target.value);
                   setPage(1);
                 }}
-                className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-700 focus:border-emerald-500 focus:outline-none"
+                className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-xs text-slate-700 focus:border-emerald-500 focus:outline-none min-h-[38px]"
               >
                 <option value="">All Villages</option>
                 {filterVillages.map((v) => (
@@ -617,14 +658,14 @@ export default function FamilyManager() {
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-slate-500 mb-1">Shortlist</label>
+              <label className="block text-[11px] font-medium text-slate-500 mb-1">Shortlist</label>
               <select
                 value={shortlistFilter}
                 onChange={(e) => {
                   setShortlistFilter(e.target.value);
                   setPage(1);
                 }}
-                className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-700 focus:border-emerald-500 focus:outline-none"
+                className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-xs text-slate-700 focus:border-emerald-500 focus:outline-none min-h-[38px]"
               >
                 <option value="">All Families</option>
                 <option value="true">Shortlisted Only</option>
@@ -633,14 +674,14 @@ export default function FamilyManager() {
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-slate-500 mb-1">Status</label>
+              <label className="block text-[11px] font-medium text-slate-500 mb-1">Status</label>
               <select
                 value={statusFilter}
                 onChange={(e) => {
                   setStatusFilter(e.target.value);
                   setPage(1);
                 }}
-                className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-700 focus:border-emerald-500 focus:outline-none"
+                className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-xs text-slate-700 focus:border-emerald-500 focus:outline-none min-h-[38px]"
               >
                 <option value="">All Statuses</option>
                 <option value="active">Active Only</option>
@@ -648,6 +689,28 @@ export default function FamilyManager() {
               </select>
             </div>
           </div>
+
+          {(search || projectFilter || mandalFilter || facilityFilter || villageFilter || shortlistFilter || statusFilter) && (
+            <div className="flex items-center justify-between pt-1 text-xs">
+              <span className="text-slate-500 text-[11px]">Filtered results active</span>
+              <button
+                type="button"
+                onClick={() => {
+                  setSearch("");
+                  setProjectFilter("");
+                  setMandalFilter("");
+                  setFacilityFilter("");
+                  setVillageFilter("");
+                  setShortlistFilter("");
+                  setStatusFilter("");
+                  setPage(1);
+                }}
+                className="text-emerald-700 hover:text-emerald-900 font-semibold underline text-[11px]"
+              >
+                Reset all filters
+              </button>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -683,156 +746,297 @@ export default function FamilyManager() {
               </p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs text-slate-700">
-                <thead className="bg-slate-50/75 text-[11px] uppercase tracking-wider text-slate-500 border-b border-slate-200">
-                  <tr>
-                    <th className="px-6 py-3 font-semibold">Family Code & Head Name</th>
-                    <th className="px-6 py-3 font-semibold">Hierarchy (Mandal / Village)</th>
-                    <th className="px-6 py-3 font-semibold">Facility & ASHA</th>
-                    <th className="px-6 py-3 font-semibold">Phone (Protected)</th>
-                    <th className="px-6 py-3 font-semibold">Drone Service</th>
-                    <th className="px-6 py-3 font-semibold">Priority</th>
-                    <th className="px-6 py-3 font-semibold">Status</th>
-                    <th className="px-6 py-3 font-semibold text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {families.map((fam) => {
-                    const isPhoneVisible = revealedPhones[fam.id];
-
-                    return (
-                      <tr key={fam.id} className="hover:bg-slate-50/80 transition-colors">
-                        <td className="px-6 py-3.5">
-                          <div className="font-mono text-[11px] font-bold text-emerald-700">
-                            {fam.familyCode}
+            <div>
+              {/* Mobile Card List (Visible on phones/small screens) */}
+              <div className="md:hidden divide-y divide-slate-100">
+                {families.map((fam) => {
+                  const isPhoneVisible = revealedPhones[fam.id];
+                  return (
+                    <div key={fam.id} className="p-4 space-y-3 hover:bg-slate-50/50 transition-colors">
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200/60">
+                              {fam.familyCode}
+                            </span>
+                            <Badge variant={fam.status === "active" ? "success" : "neutral"} size="sm">
+                              {fam.status === "active" ? "Active" : "Inactive"}
+                            </Badge>
                           </div>
-                          <div className="font-semibold text-slate-900 mt-0.5">
+                          <h4 className="font-bold text-slate-900 text-sm mt-1">
                             {fam.householdHeadName}
-                          </div>
-                          {fam.householdCharacteristics?.length > 0 && (
-                            <div className="flex flex-wrap gap-1 mt-1">
-                              {fam.householdCharacteristics.map((c) => (
-                                <span
-                                  key={c}
-                                  className="inline-block px-1.5 py-0.2 rounded text-[9px] font-semibold bg-slate-100 text-slate-600"
-                                >
-                                  {CHARACTERISTICS_LABELS[c] || c}
-                                </span>
-                              ))}
-                            </div>
-                          )}
-                        </td>
-                        <td className="px-6 py-3.5">
-                          <div className="font-medium text-slate-800">
+                          </h4>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => toggleShortlist(fam)}
+                          title={fam.shortlisted ? "Remove from priority shortlist" : "Add to priority shortlist"}
+                          className="p-1 text-slate-300 hover:text-amber-500 transition-colors"
+                        >
+                          <StarIcon
+                            filled={fam.shortlisted}
+                            className={`w-5 h-5 ${
+                              fam.shortlisted ? "text-amber-500" : "text-slate-300"
+                            }`}
+                          />
+                        </button>
+                      </div>
+
+                      {/* Catchment & Facility */}
+                      <div className="grid grid-cols-2 gap-2 text-xs bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+                        <div>
+                          <span className="text-[10px] text-slate-400 block font-medium">Catchment</span>
+                          <span className="font-semibold text-slate-800 truncate block">
                             {fam.village?.name || "Village N/A"}
-                          </div>
-                          <div className="text-[11px] text-slate-500">
+                          </span>
+                          <span className="text-[10px] text-slate-500 block truncate">
                             {fam.mandal?.name || "Mandal N/A"}
-                          </div>
-                        </td>
-                        <td className="px-6 py-3.5">
-                          <div className="font-medium text-slate-800">
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-[10px] text-slate-400 block font-medium">Facility / ASHA</span>
+                          <span className="font-semibold text-slate-800 truncate block">
                             {fam.facility?.name || "Facility N/A"}
-                          </div>
-                          <div className="text-[11px] text-slate-500">
-                            ASHA: {fam.asha?.fullName || "None assigned"}
-                          </div>
-                        </td>
-                        <td className="px-6 py-3.5">
+                          </span>
+                          <span className="text-[10px] text-slate-500 block truncate">
+                            {fam.asha?.fullName ? `ASHA: ${fam.asha.fullName}` : "No ASHA"}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Phone & Drone Info */}
+                      <div className="flex items-center justify-between text-xs pt-0.5">
+                        <div>
                           {fam.phoneNumber ? (
-                            <div className="space-y-0.5 font-mono text-[11px]">
-                              <div className="flex items-center gap-2">
-                                <span>{isPhoneVisible ? fam.phoneNumber : maskPhone(fam.phoneNumber)}</span>
-                                <button
-                                  type="button"
-                                  onClick={() => togglePhoneReveal(fam.id)}
-                                  className="text-[10px] text-emerald-700 hover:text-emerald-900 underline font-sans"
-                                >
-                                  {isPhoneVisible ? "Hide" : "Show"}
-                                </button>
-                              </div>
-                              <span className="text-[10px] text-slate-400 capitalize font-sans">
-                                ({fam.phoneOwner || "own"})
+                            <div className="flex items-center gap-1.5 font-mono text-[11px]">
+                              <span className="text-slate-700">
+                                {isPhoneVisible ? fam.phoneNumber : maskPhone(fam.phoneNumber)}
                               </span>
+                              <button
+                                type="button"
+                                onClick={() => togglePhoneReveal(fam.id)}
+                                className="text-[10px] text-emerald-700 font-sans font-medium underline"
+                              >
+                                {isPhoneVisible ? "Hide" : "Show"}
+                              </button>
                             </div>
                           ) : (
-                            <span className="text-slate-400 italic">None</span>
+                            <span className="text-slate-400 italic text-[11px]">No phone</span>
                           )}
-                        </td>
-                        <td className="px-6 py-3.5">
-                          <span
-                            className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold ${
-                              fam.receivedDroneService === "yes"
-                                ? "bg-emerald-100 text-emerald-800"
-                                : fam.receivedDroneService === "dont_know"
-                                ? "bg-amber-100 text-amber-800"
-                                : "bg-slate-100 text-slate-600"
-                            }`}
-                          >
-                            {fam.receivedDroneService === "yes"
-                              ? "Received"
+                        </div>
+                        <span
+                          className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold ${
+                            fam.receivedDroneService === "yes"
+                              ? "bg-emerald-100 text-emerald-800"
                               : fam.receivedDroneService === "dont_know"
-                              ? "Don't know"
-                              : "No"}
-                          </span>
-                        </td>
-                        <td className="px-6 py-3.5">
-                          <button
-                            type="button"
-                            onClick={() => toggleShortlist(fam)}
-                            title={fam.shortlisted ? "Remove from priority shortlist" : "Add to priority shortlist"}
-                            className="inline-flex items-center gap-1 group"
-                          >
-                            <StarIcon
-                              filled={fam.shortlisted}
-                              className={`w-4 h-4 transition-colors ${
-                                fam.shortlisted ? "text-amber-500" : "text-slate-300 group-hover:text-amber-400"
-                              }`}
-                            />
-                            {fam.shortlisted && (
-                              <span className="text-[10px] font-bold text-amber-700">Shortlisted</span>
+                              ? "bg-amber-100 text-amber-800"
+                              : "bg-slate-100 text-slate-600"
+                          }`}
+                        >
+                          Drone: {fam.receivedDroneService === "yes" ? "Yes" : fam.receivedDroneService === "dont_know" ? "Don't know" : "No"}
+                        </span>
+                      </div>
+
+                      {/* Characteristics */}
+                      {fam.householdCharacteristics?.length > 0 && (
+                        <div className="flex flex-wrap gap-1 pt-0.5">
+                          {fam.householdCharacteristics.map((c) => (
+                            <span
+                              key={c}
+                              className="inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold bg-slate-100 text-slate-600"
+                            >
+                              {CHARACTERISTICS_LABELS[c] || c}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Action buttons on mobile */}
+                      <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                        <button
+                          type="button"
+                          onClick={() => setViewingFamily(fam)}
+                          className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-semibold text-xs min-h-[34px]"
+                        >
+                          View
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => openEditForm(fam)}
+                          className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-emerald-700 font-semibold text-xs min-h-[34px] flex items-center gap-1"
+                        >
+                          <EditIcon className="w-3.5 h-3.5" />
+                          <span>Edit</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => toggleStatus(fam)}
+                          className={`px-3 py-1.5 rounded-lg border text-xs font-semibold min-h-[34px] ${
+                            fam.status === "active"
+                              ? "border-rose-200 bg-rose-50/50 text-rose-700 hover:bg-rose-100/50"
+                              : "border-emerald-200 bg-emerald-50/50 text-emerald-700 hover:bg-emerald-100/50"
+                          }`}
+                        >
+                          {fam.status === "active" ? "Deactivate" : "Activate"}
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Desktop Table (Hidden on small screens) */}
+              <div className="hidden md:block overflow-x-auto">
+                <table className="w-full text-left text-xs text-slate-700">
+                  <thead className="bg-slate-50/75 text-[11px] uppercase tracking-wider text-slate-500 border-b border-slate-200">
+                    <tr>
+                      <th className="px-6 py-3 font-semibold">Family Code & Head Name</th>
+                      <th className="px-6 py-3 font-semibold">Hierarchy (Mandal / Village)</th>
+                      <th className="px-6 py-3 font-semibold">Facility & ASHA</th>
+                      <th className="px-6 py-3 font-semibold">Phone (Protected)</th>
+                      <th className="px-6 py-3 font-semibold">Drone Service</th>
+                      <th className="px-6 py-3 font-semibold">Priority</th>
+                      <th className="px-6 py-3 font-semibold">Status</th>
+                      <th className="px-6 py-3 font-semibold text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {families.map((fam) => {
+                      const isPhoneVisible = revealedPhones[fam.id];
+
+                      return (
+                        <tr key={fam.id} className="hover:bg-slate-50/80 transition-colors">
+                          <td className="px-6 py-3.5">
+                            <div className="font-mono text-[11px] font-bold text-emerald-700">
+                              {fam.familyCode}
+                            </div>
+                            <div className="font-semibold text-slate-900 mt-0.5">
+                              {fam.householdHeadName}
+                            </div>
+                            {fam.householdCharacteristics?.length > 0 && (
+                              <div className="flex flex-wrap gap-1 mt-1">
+                                {fam.householdCharacteristics.map((c) => (
+                                  <span
+                                    key={c}
+                                    className="inline-block px-1.5 py-0.2 rounded text-[9px] font-semibold bg-slate-100 text-slate-600"
+                                  >
+                                    {CHARACTERISTICS_LABELS[c] || c}
+                                  </span>
+                                ))}
+                              </div>
                             )}
-                          </button>
-                        </td>
-                        <td className="px-6 py-3.5">
-                          <Badge variant={fam.status === "active" ? "success" : "neutral"} size="sm">
-                            {fam.status === "active" ? "Active" : "Inactive"}
-                          </Badge>
-                        </td>
-                        <td className="px-6 py-3.5 text-right space-x-2">
-                          <button
-                            type="button"
-                            onClick={() => setViewingFamily(fam)}
-                            className="text-slate-600 hover:text-slate-900 font-medium text-xs transition-colors"
-                          >
-                            View
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => openEditForm(fam)}
-                            className="inline-flex items-center gap-1 text-slate-600 hover:text-emerald-700 font-medium text-xs transition-colors"
-                          >
-                            <EditIcon className="w-3.5 h-3.5" />
-                            <span>Edit</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => toggleStatus(fam)}
-                            className={`font-medium text-xs transition-colors ${
-                              fam.status === "active"
-                                ? "text-rose-600 hover:text-rose-800"
-                                : "text-emerald-600 hover:text-emerald-800"
-                            }`}
-                          >
-                            {fam.status === "active" ? "Deactivate" : "Activate"}
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+                          </td>
+                          <td className="px-6 py-3.5">
+                            <div className="font-medium text-slate-800">
+                              {fam.village?.name || "Village N/A"}
+                            </div>
+                            <div className="text-[11px] text-slate-500">
+                              {fam.mandal?.name || "Mandal N/A"}
+                            </div>
+                          </td>
+                          <td className="px-6 py-3.5">
+                            <div className="font-medium text-slate-800">
+                              {fam.facility?.name || "Facility N/A"}
+                            </div>
+                            <div className="text-[11px] text-slate-500">
+                              ASHA: {fam.asha?.fullName || "None assigned"}
+                            </div>
+                          </td>
+                          <td className="px-6 py-3.5">
+                            {fam.phoneNumber ? (
+                              <div className="space-y-0.5 font-mono text-[11px]">
+                                <div className="flex items-center gap-2">
+                                  <span>{isPhoneVisible ? fam.phoneNumber : maskPhone(fam.phoneNumber)}</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => togglePhoneReveal(fam.id)}
+                                    className="text-[10px] text-emerald-700 hover:text-emerald-900 underline font-sans"
+                                  >
+                                    {isPhoneVisible ? "Hide" : "Show"}
+                                  </button>
+                                </div>
+                                <span className="text-[10px] text-slate-400 capitalize font-sans">
+                                  ({fam.phoneOwner || "own"})
+                                </span>
+                              </div>
+                            ) : (
+                              <span className="text-slate-400 italic">None</span>
+                            )}
+                          </td>
+                          <td className="px-6 py-3.5">
+                            <span
+                              className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold ${
+                                fam.receivedDroneService === "yes"
+                                  ? "bg-emerald-100 text-emerald-800"
+                                  : fam.receivedDroneService === "dont_know"
+                                  ? "bg-amber-100 text-amber-800"
+                                  : "bg-slate-100 text-slate-600"
+                              }`}
+                            >
+                              {fam.receivedDroneService === "yes"
+                                ? "Received"
+                                : fam.receivedDroneService === "dont_know"
+                                ? "Don't know"
+                                : "No"}
+                            </span>
+                          </td>
+                          <td className="px-6 py-3.5">
+                            <button
+                              type="button"
+                              onClick={() => toggleShortlist(fam)}
+                              title={fam.shortlisted ? "Remove from priority shortlist" : "Add to priority shortlist"}
+                              className="inline-flex items-center gap-1 group"
+                            >
+                              <StarIcon
+                                filled={fam.shortlisted}
+                                className={`w-4 h-4 transition-colors ${
+                                  fam.shortlisted ? "text-amber-500" : "text-slate-300 group-hover:text-amber-400"
+                                }`}
+                              />
+                              {fam.shortlisted && (
+                                <span className="text-[10px] font-bold text-amber-700">Shortlisted</span>
+                              )}
+                            </button>
+                          </td>
+                          <td className="px-6 py-3.5">
+                            <Badge variant={fam.status === "active" ? "success" : "neutral"} size="sm">
+                              {fam.status === "active" ? "Active" : "Inactive"}
+                            </Badge>
+                          </td>
+                          <td className="px-6 py-3.5 text-right space-x-2">
+                            <button
+                              type="button"
+                              onClick={() => setViewingFamily(fam)}
+                              className="text-slate-600 hover:text-slate-900 font-medium text-xs transition-colors"
+                            >
+                              View
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => openEditForm(fam)}
+                              className="inline-flex items-center gap-1 text-slate-600 hover:text-emerald-700 font-medium text-xs transition-colors"
+                            >
+                              <EditIcon className="w-3.5 h-3.5" />
+                              <span>Edit</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => toggleStatus(fam)}
+                              className={`font-medium text-xs transition-colors ${
+                                fam.status === "active"
+                                  ? "text-rose-600 hover:text-rose-800"
+                                  : "text-emerald-600 hover:text-emerald-800"
+                              }`}
+                            >
+                              {fam.status === "active" ? "Deactivate" : "Activate"}
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
 
@@ -867,403 +1071,521 @@ export default function FamilyManager() {
 
       {/* Add / Edit Family Form Modal */}
       {isFormOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 overflow-y-auto animate-fadeIn">
-          <div className="my-8 w-full max-w-3xl rounded-2xl bg-white shadow-2xl border border-slate-200 overflow-hidden">
-            <div className="border-b border-slate-100 bg-slate-50/75 px-6 py-4 flex items-center justify-between">
-              <div>
-                <h3 className="text-base font-bold text-slate-900">
-                  {editingId ? "Edit Family Household" : "Register New Family Household"}
-                </h3>
-                <p className="text-xs text-slate-500">
-                  {editingId
-                    ? "Update household information, characteristics, and survey preferences"
-                    : "Register family in the catchment hierarchy with atomic Family Code generation"}
-                </p>
+        <div
+          className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/70 backdrop-blur-sm flex justify-center items-end sm:items-center p-0 sm:p-4 md:p-6 transition-all animate-fadeIn"
+          role="dialog"
+          aria-modal="true"
+        >
+          {/* Backdrop click dismisser */}
+          <div
+            className="fixed inset-0 -z-10"
+            onClick={() => setIsFormOpen(false)}
+            aria-hidden="true"
+          />
+
+          <div className="max-sm:h-[94dvh] max-sm:rounded-t-3xl max-sm:w-full sm:max-h-[88vh] sm:rounded-2xl max-w-3xl w-full flex flex-col bg-white shadow-2xl border border-slate-200 overflow-hidden relative">
+            {/* Mobile Sheet Drag Indicator */}
+            <div className="sm:hidden w-12 h-1.5 bg-slate-300 rounded-full mx-auto my-2.5 shrink-0" />
+
+            {/* Header (Sticky at top of modal) */}
+            <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-md px-4 py-3 sm:px-6 sm:py-4 border-b border-slate-100 flex items-center justify-between shrink-0 shadow-xs">
+              <div className="flex items-center gap-3 pr-2 min-w-0">
+                <div className="flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 shrink-0">
+                  <HomeIcon className="w-5 h-5" />
+                </div>
+                <div className="min-w-0">
+                  <h3 className="text-base sm:text-lg font-bold text-slate-900 truncate">
+                    {editingId ? "Edit Family Household" : "Register New Family"}
+                  </h3>
+                  <p className="text-[11px] sm:text-xs text-slate-500 truncate">
+                    {editingId
+                      ? "Update catchment, head, & health characteristics"
+                      : "Add household with automatic Family Code generation"}
+                  </p>
+                </div>
               </div>
               <button
+                type="button"
                 onClick={() => setIsFormOpen(false)}
-                className="text-slate-400 hover:text-slate-600 text-lg leading-none"
+                className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100 hover:bg-slate-200 active:scale-95 text-slate-500 hover:text-slate-800 transition-all shrink-0"
+                aria-label="Close form"
               >
-                &times;
+                <CloseIcon className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={(e) => handleSubmit(e, false)} className="p-6 space-y-6">
-              {/* SECTION A: LOCATION & GEOGRAPHY */}
-              <div className="space-y-3">
-                <div className="flex items-center gap-2 border-b border-slate-100 pb-2">
-                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-100 text-[11px] font-bold text-emerald-800">
-                    A
-                  </span>
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-800">
-                    Location & Geographic Catchment
-                  </h4>
-                </div>
+            {/* Quick Section Navigation Pills (Mobile-friendly jump bar) */}
+            <div className="sticky top-0 z-20 bg-slate-50/95 backdrop-blur-sm px-4 py-2 sm:px-6 border-b border-slate-200/70 flex items-center gap-1.5 sm:gap-2 overflow-x-auto shrink-0 text-xs">
+              <button
+                type="button"
+                onClick={() => scrollToSection("section-location")}
+                className={`px-3 py-1.5 rounded-lg font-medium transition-all whitespace-nowrap min-h-[32px] ${
+                  activeSection === "section-location"
+                    ? "bg-emerald-600 text-white shadow-xs font-semibold"
+                    : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
+                }`}
+              >
+                A. Catchment
+              </button>
+              <button
+                type="button"
+                onClick={() => scrollToSection("section-contact")}
+                className={`px-3 py-1.5 rounded-lg font-medium transition-all whitespace-nowrap min-h-[32px] ${
+                  activeSection === "section-contact"
+                    ? "bg-emerald-600 text-white shadow-xs font-semibold"
+                    : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
+                }`}
+              >
+                B. Household Head
+              </button>
+              <button
+                type="button"
+                onClick={() => scrollToSection("section-health")}
+                className={`px-3 py-1.5 rounded-lg font-medium transition-all whitespace-nowrap min-h-[32px] ${
+                  activeSection === "section-health"
+                    ? "bg-emerald-600 text-white shadow-xs font-semibold"
+                    : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
+                }`}
+              >
+                C. Health Profile
+              </button>
+            </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      1. Project *
-                    </label>
-                    <select
-                      required
-                      value={projectId}
-                      onChange={(e) => handleFormProjectChange(e.target.value)}
-                      className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-900 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
-                    >
-                      <option value="" disabled>
-                        Select Project
-                      </option>
-                      {projects.map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.name} ({p.code})
-                        </option>
-                      ))}
-                    </select>
+            {/* Scrollable Form Body */}
+            <form onSubmit={(e) => handleSubmit(e, false)} className="flex flex-col flex-1 min-h-0">
+              <div className="flex-1 overflow-y-auto px-4 py-5 sm:px-6 sm:py-6 space-y-6 overscroll-contain">
+                {/* SECTION A: LOCATION & GEOGRAPHY */}
+                <div id="section-location" className="space-y-3.5 scroll-mt-28">
+                  <div className="flex items-center gap-2 border-b border-slate-100 pb-2">
+                    <span className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-100 text-[11px] font-bold text-emerald-800">
+                      A
+                    </span>
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-slate-800">
+                      Location & Geographic Catchment
+                    </h4>
                   </div>
 
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      2. Mandal *
-                    </label>
-                    <select
-                      required
-                      value={mandalId}
-                      onChange={(e) => handleFormMandalChange(e.target.value)}
-                      disabled={!projectId || formMandals.length === 0}
-                      className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-900 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 disabled:bg-slate-100 disabled:text-slate-400"
-                    >
-                      <option value="" disabled>
-                        Select Mandal
-                      </option>
-                      {formMandals.map((m) => (
-                        <option key={m.id} value={m.id}>
-                          {m.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      3. PHC / Facility *
-                    </label>
-                    <select
-                      required
-                      value={facilityId}
-                      onChange={(e) => handleFormFacilityChange(e.target.value)}
-                      disabled={!mandalId || formFacilities.length === 0}
-                      className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-900 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 disabled:bg-slate-100 disabled:text-slate-400"
-                    >
-                      <option value="" disabled>
-                        Select Facility
-                      </option>
-                      {formFacilities.map((f) => (
-                        <option key={f.id} value={f.id}>
-                          {f.name} ({f.facilityType || "PHC"})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      4. Village / Habitation *
-                    </label>
-                    <select
-                      required
-                      value={villageId}
-                      onChange={(e) => setVillageId(e.target.value)}
-                      disabled={!facilityId || formVillages.length === 0}
-                      className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-900 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 disabled:bg-slate-100 disabled:text-slate-400"
-                    >
-                      <option value="" disabled>
-                        {formVillages.length === 0 ? "No Villages in Catchment" : "Select Village"}
-                      </option>
-                      {formVillages.map((v) => (
-                        <option key={v.id} value={v.id}>
-                          {v.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      5. Assigned ASHA Worker
-                    </label>
-                    <select
-                      value={ashaId}
-                      onChange={(e) => setAshaId(e.target.value)}
-                      disabled={!mandalId}
-                      className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-900 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 disabled:bg-slate-100 disabled:text-slate-400"
-                    >
-                      <option value="">None / Not Assigned</option>
-                      {formAshas.map((a) => (
-                        <option key={a.id} value={a.id}>
-                          {a.fullName}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-              </div>
-
-              {/* SECTION B: HOUSEHOLD INFORMATION */}
-              <div className="space-y-3">
-                <div className="flex items-center gap-2 border-b border-slate-100 pb-2">
-                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-100 text-[11px] font-bold text-emerald-800">
-                    B
-                  </span>
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-800">
-                    Household Contact & Ownership
-                  </h4>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <div className="sm:col-span-1">
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      6. Household Head Name *
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      maxLength={120}
-                      value={householdHeadName}
-                      onChange={(e) => setHouseholdHeadName(e.target.value)}
-                      placeholder="e.g. Kondagorla Somulu"
-                      className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-900 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      7. Phone Number (Optional)
-                    </label>
-                    <input
-                      type="tel"
-                      value={phoneNumber}
-                      onChange={(e) => setPhoneNumber(e.target.value)}
-                      placeholder="e.g. 9876543210"
-                      className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-900 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      8. Whose Phone? *
-                    </label>
-                    <select
-                      value={phoneOwner}
-                      onChange={(e) => setPhoneOwner(e.target.value)}
-                      className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-900 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
-                    >
-                      <option value="own">Own</option>
-                      <option value="relative">Relative</option>
-                      <option value="neighbour">Neighbour</option>
-                      <option value="asha">ASHA</option>
-                    </select>
-                  </div>
-                </div>
-              </div>
-
-              {/* SECTION C: CHARACTERISTICS & HEALTH ACCESS */}
-              <div className="space-y-4">
-                <div className="flex items-center gap-2 border-b border-slate-100 pb-2">
-                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-100 text-[11px] font-bold text-emerald-800">
-                    C
-                  </span>
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-800">
-                    Household Health Profile & Characteristics
-                  </h4>
-                </div>
-
-                {/* 9. Characteristics Checkboxes */}
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-2">
-                    9. Household Characteristics (Select all that apply)
-                  </label>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                    {Object.entries(CHARACTERISTICS_LABELS).map(([key, label]) => (
-                      <label
-                        key={key}
-                        className={`flex items-center gap-2.5 p-3 rounded-xl border text-xs cursor-pointer transition-all ${
-                          householdCharacteristics.includes(key)
-                            ? "border-emerald-500 bg-emerald-50 text-emerald-900 font-medium"
-                            : "border-slate-200 bg-slate-50/50 hover:bg-slate-100 text-slate-700"
-                        }`}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={householdCharacteristics.includes(key)}
-                          onChange={() => toggleCharacteristic(key)}
-                          className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
-                        />
-                        <span>{label}</span>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 sm:gap-4">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">
+                        1. Project *
                       </label>
-                    ))}
-                  </div>
-                </div>
-
-                {/* 10, 11, 12 Grid */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      10. Visited PHC in last 3 months? *
-                    </label>
-                    <select
-                      required
-                      value={visitedPHCLast3Months}
-                      onChange={(e) => setVisitedPHCLast3Months(e.target.value)}
-                      className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-900 focus:border-emerald-500 focus:outline-none"
-                    >
-                      <option value="yes">Yes</option>
-                      <option value="no">No</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      11. Agrees to Contact? *
-                    </label>
-                    <select
-                      required
-                      value={agreesToContact}
-                      onChange={(e) => setAgreesToContact(e.target.value)}
-                      className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-900 focus:border-emerald-500 focus:outline-none"
-                    >
-                      <option value="yes">Yes</option>
-                      <option value="no">No</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      12. Travel Time to PHC *
-                    </label>
-                    <select
-                      required
-                      value={travelTimeToPHC}
-                      onChange={(e) => setTravelTimeToPHC(e.target.value)}
-                      className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-900 focus:border-emerald-500 focus:outline-none"
-                    >
-                      {Object.entries(TRAVEL_TIME_LABELS).map(([val, label]) => (
-                        <option key={val} value={val}>
-                          {label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-
-                {/* 13. Reasons for repeated care */}
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-2">
-                    13. Why is the household likely to need care repeatedly? (Multi-select)
-                  </label>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                    {Object.entries(CARE_REASONS_LABELS).map(([key, label]) => (
-                      <label
-                        key={key}
-                        className={`flex items-center gap-2 p-2.5 rounded-xl border text-xs cursor-pointer transition-all ${
-                          reasonsForRepeatedCare.includes(key)
-                            ? "border-emerald-500 bg-emerald-50 text-emerald-900 font-medium"
-                            : "border-slate-200 bg-slate-50/50 hover:bg-slate-100 text-slate-700"
-                        }`}
+                      <select
+                        required
+                        value={projectId}
+                        onChange={(e) => handleFormProjectChange(e.target.value)}
+                        className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 sm:py-2 text-base sm:text-sm text-slate-900 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 min-h-[44px] sm:min-h-[38px] transition-all"
                       >
-                        <input
-                          type="checkbox"
-                          checked={reasonsForRepeatedCare.includes(key)}
-                          onChange={() => toggleCareReason(key)}
-                          className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
-                        />
-                        <span>{label}</span>
+                        <option value="" disabled>
+                          Select Project
+                        </option>
+                        {projects.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.name} ({p.code})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">
+                        2. Mandal *
                       </label>
-                    ))}
+                      <select
+                        required
+                        value={mandalId}
+                        onChange={(e) => handleFormMandalChange(e.target.value)}
+                        disabled={!projectId || formMandals.length === 0}
+                        className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 sm:py-2 text-base sm:text-sm text-slate-900 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 disabled:bg-slate-100 disabled:text-slate-400 min-h-[44px] sm:min-h-[38px] transition-all"
+                      >
+                        <option value="" disabled>
+                          Select Mandal
+                        </option>
+                        {formMandals.map((m) => (
+                          <option key={m.id} value={m.id}>
+                            {m.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
 
-                  {reasonsForRepeatedCare.includes("other") && (
-                    <div className="mt-2.5">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 sm:gap-4">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">
+                        3. PHC / Facility *
+                      </label>
+                      <select
+                        required
+                        value={facilityId}
+                        onChange={(e) => handleFormFacilityChange(e.target.value)}
+                        disabled={!mandalId || formFacilities.length === 0}
+                        className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 sm:py-2 text-base sm:text-sm text-slate-900 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 disabled:bg-slate-100 disabled:text-slate-400 min-h-[44px] sm:min-h-[38px] transition-all"
+                      >
+                        <option value="" disabled>
+                          Select Facility
+                        </option>
+                        {formFacilities.map((f) => (
+                          <option key={f.id} value={f.id}>
+                            {f.name} ({f.facilityType || "PHC"})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">
+                        4. Village / Habitation *
+                      </label>
+                      <select
+                        required
+                        value={villageId}
+                        onChange={(e) => setVillageId(e.target.value)}
+                        disabled={!facilityId || formVillages.length === 0}
+                        className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 sm:py-2 text-base sm:text-sm text-slate-900 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 disabled:bg-slate-100 disabled:text-slate-400 min-h-[44px] sm:min-h-[38px] transition-all"
+                      >
+                        <option value="" disabled>
+                          {formVillages.length === 0 ? "No Villages in Catchment" : "Select Village"}
+                        </option>
+                        {formVillages.map((v) => (
+                          <option key={v.id} value={v.id}>
+                            {v.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">
+                        5. Assigned ASHA Worker
+                      </label>
+                      <select
+                        value={ashaId}
+                        onChange={(e) => setAshaId(e.target.value)}
+                        disabled={!mandalId}
+                        className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 sm:py-2 text-base sm:text-sm text-slate-900 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 disabled:bg-slate-100 disabled:text-slate-400 min-h-[44px] sm:min-h-[38px] transition-all"
+                      >
+                        <option value="">None / Not Assigned</option>
+                        {formAshas.map((a) => (
+                          <option key={a.id} value={a.id}>
+                            {a.fullName}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                {/* SECTION B: HOUSEHOLD INFORMATION */}
+                <div id="section-contact" className="space-y-3.5 scroll-mt-28">
+                  <div className="flex items-center gap-2 border-b border-slate-100 pb-2">
+                    <span className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-100 text-[11px] font-bold text-emerald-800">
+                      B
+                    </span>
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-slate-800">
+                      Household Contact & Ownership
+                    </h4>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 sm:gap-4">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">
+                        6. Household Head Name *
+                      </label>
                       <input
                         type="text"
-                        maxLength={250}
-                        value={otherCareReason}
-                        onChange={(e) => setOtherCareReason(e.target.value)}
-                        placeholder="Please specify other reason for recurring healthcare needs..."
-                        className="w-full rounded-xl border border-slate-300 px-3 py-2 text-xs text-slate-900 focus:border-emerald-500 focus:outline-none"
+                        required
+                        maxLength={120}
+                        value={householdHeadName}
+                        onChange={(e) => setHouseholdHeadName(e.target.value)}
+                        placeholder="e.g. Kondagorla Somulu"
+                        className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 sm:py-2 text-base sm:text-sm text-slate-900 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 min-h-[44px] sm:min-h-[38px] transition-all"
                       />
                     </div>
-                  )}
-                </div>
 
-                {/* 14, 15, 16 Drone Service & Remarks */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      14. Already received drone-delivered service? *
-                    </label>
-                    <select
-                      required
-                      value={receivedDroneService}
-                      onChange={(e) => setReceivedDroneService(e.target.value)}
-                      className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-900 focus:border-emerald-500 focus:outline-none"
-                    >
-                      <option value="yes">Yes</option>
-                      <option value="no">No</option>
-                      <option value="dont_know">Don&apos;t know</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      15. ASHA Remarks (Optional)
-                    </label>
-                    <input
-                      type="text"
-                      maxLength={500}
-                      value={ashaRemarks}
-                      onChange={(e) => setAshaRemarks(e.target.value)}
-                      placeholder="Notes on accessibility, chronic illness history, etc."
-                      className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-900 focus:border-emerald-500 focus:outline-none"
-                    />
-                  </div>
-                </div>
-
-                {/* 16. Shortlisted Checkbox */}
-                <div className="pt-2">
-                  <label className="flex items-center gap-3 p-3.5 rounded-xl border border-amber-200 bg-amber-50/60 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={shortlisted}
-                      onChange={(e) => setShortlisted(e.target.checked)}
-                      className="h-4 w-4 rounded border-amber-300 text-amber-600 focus:ring-amber-500"
-                    />
                     <div>
-                      <div className="text-xs font-bold text-amber-900">
-                        16. Priority Shortlist
-                      </div>
-                      <div className="text-[11px] text-amber-700">
-                        Mark this household for high-priority field visit and immediate follow-up.
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">
+                        7. Phone Number (Optional)
+                      </label>
+                      <input
+                        type="tel"
+                        inputMode="numeric"
+                        value={phoneNumber}
+                        onChange={(e) => setPhoneNumber(e.target.value)}
+                        placeholder="e.g. 9876543210"
+                        className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 sm:py-2 text-base sm:text-sm text-slate-900 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 min-h-[44px] sm:min-h-[38px] transition-all font-mono"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">
+                        8. Whose Phone? *
+                      </label>
+                      <div className="grid grid-cols-2 gap-1.5 sm:gap-2">
+                        {["own", "relative", "neighbour", "asha"].map((opt) => (
+                          <button
+                            key={opt}
+                            type="button"
+                            onClick={() => setPhoneOwner(opt)}
+                            className={`py-2 px-2.5 rounded-xl text-xs font-semibold capitalize border min-h-[42px] sm:min-h-[38px] transition-all flex items-center justify-center ${
+                              phoneOwner === opt
+                                ? "border-emerald-600 bg-emerald-50 text-emerald-900 shadow-xs ring-1 ring-emerald-500"
+                                : "border-slate-200 bg-slate-50/70 text-slate-600 hover:bg-slate-100"
+                            }`}
+                          >
+                            {opt}
+                          </button>
+                        ))}
                       </div>
                     </div>
-                  </label>
+                  </div>
+                </div>
+
+                {/* SECTION C: CHARACTERISTICS & HEALTH ACCESS */}
+                <div id="section-health" className="space-y-4 scroll-mt-28">
+                  <div className="flex items-center gap-2 border-b border-slate-100 pb-2">
+                    <span className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-100 text-[11px] font-bold text-emerald-800">
+                      C
+                    </span>
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-slate-800">
+                      Household Health Profile & Characteristics
+                    </h4>
+                  </div>
+
+                  {/* 9. Characteristics Checkboxes */}
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-2">
+                      9. Household Characteristics (Select all that apply)
+                    </label>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-2.5">
+                      {Object.entries(CHARACTERISTICS_LABELS).map(([key, label]) => {
+                        const isSelected = householdCharacteristics.includes(key);
+                        return (
+                          <label
+                            key={key}
+                            className={`flex items-center gap-3 p-3 rounded-xl border text-xs cursor-pointer transition-all min-h-[44px] select-none active:scale-[0.99] ${
+                              isSelected
+                                ? "border-emerald-500 bg-emerald-50/90 text-emerald-950 font-semibold ring-1 ring-emerald-500/40 shadow-xs"
+                                : "border-slate-200 bg-slate-50/60 hover:bg-slate-100 text-slate-700"
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={() => toggleCharacteristic(key)}
+                              className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                            />
+                            <span className="leading-snug">{label}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* 10, 11, 12 Grid */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 sm:gap-4">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                        10. Visited PHC in last 3 months? *
+                      </label>
+                      <div className="grid grid-cols-2 gap-2">
+                        {[
+                          { val: "yes", label: "Yes" },
+                          { val: "no", label: "No" },
+                        ].map((item) => (
+                          <button
+                            key={item.val}
+                            type="button"
+                            onClick={() => setVisitedPHCLast3Months(item.val)}
+                            className={`py-2 px-3 rounded-xl text-xs font-semibold border transition-all min-h-[42px] sm:min-h-[38px] flex items-center justify-center ${
+                              visitedPHCLast3Months === item.val
+                                ? "border-emerald-500 bg-emerald-600 text-white shadow-xs"
+                                : "border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100"
+                            }`}
+                          >
+                            {item.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                        11. Agrees to Contact? *
+                      </label>
+                      <div className="grid grid-cols-2 gap-2">
+                        {[
+                          { val: "yes", label: "Yes" },
+                          { val: "no", label: "No" },
+                        ].map((item) => (
+                          <button
+                            key={item.val}
+                            type="button"
+                            onClick={() => setAgreesToContact(item.val)}
+                            className={`py-2 px-3 rounded-xl text-xs font-semibold border transition-all min-h-[42px] sm:min-h-[38px] flex items-center justify-center ${
+                              agreesToContact === item.val
+                                ? "border-emerald-500 bg-emerald-600 text-white shadow-xs"
+                                : "border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100"
+                            }`}
+                          >
+                            {item.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                        12. Travel Time to PHC *
+                      </label>
+                      <select
+                        required
+                        value={travelTimeToPHC}
+                        onChange={(e) => setTravelTimeToPHC(e.target.value)}
+                        className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-base sm:text-sm text-slate-900 focus:border-emerald-500 focus:outline-none min-h-[42px] sm:min-h-[38px]"
+                      >
+                        {Object.entries(TRAVEL_TIME_LABELS).map(([val, label]) => (
+                          <option key={val} value={val}>
+                            {label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* 13. Reasons for repeated care */}
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-2">
+                      13. Why is the household likely to need care repeatedly? (Multi-select)
+                    </label>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-2.5">
+                      {Object.entries(CARE_REASONS_LABELS).map(([key, label]) => {
+                        const isSelected = reasonsForRepeatedCare.includes(key);
+                        return (
+                          <label
+                            key={key}
+                            className={`flex items-center gap-2.5 p-2.5 sm:p-3 rounded-xl border text-xs cursor-pointer transition-all min-h-[44px] select-none active:scale-[0.99] ${
+                              isSelected
+                                ? "border-emerald-500 bg-emerald-50/90 text-emerald-950 font-semibold ring-1 ring-emerald-500/40 shadow-xs"
+                                : "border-slate-200 bg-slate-50/60 hover:bg-slate-100 text-slate-700"
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={() => toggleCareReason(key)}
+                              className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 shrink-0"
+                            />
+                            <span className="leading-snug">{label}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+
+                    {reasonsForRepeatedCare.includes("other") && (
+                      <div className="mt-2.5">
+                        <input
+                          type="text"
+                          maxLength={250}
+                          value={otherCareReason}
+                          onChange={(e) => setOtherCareReason(e.target.value)}
+                          placeholder="Please specify other reason for recurring healthcare needs..."
+                          className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 sm:py-2 text-base sm:text-xs text-slate-900 focus:border-emerald-500 focus:outline-none min-h-[44px] sm:min-h-[38px]"
+                        />
+                      </div>
+                    )}
+                  </div>
+
+                  {/* 14, 15 Drone Service & Remarks */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 sm:gap-4">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                        14. Already received drone-delivered service? *
+                      </label>
+                      <div className="grid grid-cols-3 gap-1.5">
+                        {[
+                          { val: "yes", label: "Yes" },
+                          { val: "no", label: "No" },
+                          { val: "dont_know", label: "Don't know" },
+                        ].map((item) => (
+                          <button
+                            key={item.val}
+                            type="button"
+                            onClick={() => setReceivedDroneService(item.val)}
+                            className={`py-2 px-1.5 rounded-xl text-xs font-semibold border transition-all min-h-[42px] sm:min-h-[38px] flex items-center justify-center text-center ${
+                              receivedDroneService === item.val
+                                ? "border-emerald-500 bg-emerald-600 text-white shadow-xs"
+                                : "border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100"
+                            }`}
+                          >
+                            {item.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                        15. ASHA Remarks (Optional)
+                      </label>
+                      <input
+                        type="text"
+                        maxLength={500}
+                        value={ashaRemarks}
+                        onChange={(e) => setAshaRemarks(e.target.value)}
+                        placeholder="Notes on accessibility, chronic illness history, etc."
+                        className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 sm:py-2 text-base sm:text-sm text-slate-900 focus:border-emerald-500 focus:outline-none min-h-[42px] sm:min-h-[38px]"
+                      />
+                    </div>
+                  </div>
+
+                  {/* 16. Shortlisted Checkbox */}
+                  <div className="pt-1">
+                    <label
+                      className={`flex items-start gap-3 p-3.5 rounded-xl border cursor-pointer transition-all select-none ${
+                        shortlisted
+                          ? "border-amber-400 bg-amber-50/90 ring-1 ring-amber-400 shadow-xs"
+                          : "border-slate-200 bg-slate-50/50 hover:bg-slate-100"
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={shortlisted}
+                        onChange={(e) => setShortlisted(e.target.checked)}
+                        className="mt-0.5 h-4 w-4 rounded border-amber-300 text-amber-600 focus:ring-amber-500 shrink-0"
+                      />
+                      <div>
+                        <div className="flex items-center gap-1.5 text-xs font-bold text-amber-900">
+                          <StarIcon filled className="w-3.5 h-3.5 text-amber-500" />
+                          <span>16. Priority Shortlist</span>
+                        </div>
+                        <p className="text-[11px] text-amber-700 mt-0.5 leading-snug">
+                          Mark this household for high-priority field visit and immediate follow-up.
+                        </p>
+                      </div>
+                    </label>
+                  </div>
                 </div>
               </div>
 
-              {/* Form Buttons */}
-              <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
+              {/* Sticky Action Footer */}
+              <div className="sticky bottom-0 z-30 bg-white/95 backdrop-blur-md px-4 py-3 sm:px-6 sm:py-4 border-t border-slate-200/80 flex flex-col-reverse sm:flex-row items-stretch sm:items-center sm:justify-end gap-2.5 sm:gap-3 shrink-0 shadow-lg sm:shadow-none">
                 <Button
                   type="button"
                   variant="ghost"
                   onClick={() => setIsFormOpen(false)}
                   disabled={isSubmitting}
+                  className="w-full sm:w-auto min-h-[44px] text-sm font-semibold justify-center"
                 >
                   Cancel
                 </Button>
-                <Button type="submit" variant="primary" isLoading={isSubmitting}>
-                  {editingId ? "Update Family" : "Register Family"}
+                <Button
+                  type="submit"
+                  variant="primary"
+                  isLoading={isSubmitting}
+                  className="w-full sm:w-auto min-h-[44px] text-sm font-bold justify-center shadow-md shadow-emerald-700/20"
+                >
+                  {editingId ? "Update Family Record" : "Register Family"}
                 </Button>
               </div>
             </form>
@@ -1273,14 +1595,14 @@ export default function FamilyManager() {
 
       {/* Duplicate Warning Confirmation Modal */}
       {duplicateWarning && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-fadeIn">
-          <div className="w-full max-w-lg rounded-2xl bg-white shadow-2xl border border-amber-300 overflow-hidden">
-            <div className="border-b border-amber-200 bg-amber-50 p-6 flex items-start gap-3">
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/70 backdrop-blur-sm p-3 sm:p-4 flex min-h-full items-center justify-center animate-fadeIn">
+          <div className="w-full max-w-lg rounded-2xl bg-white shadow-2xl border border-amber-300 overflow-hidden my-auto">
+            <div className="border-b border-amber-200 bg-amber-50 p-4 sm:p-6 flex items-start gap-3">
               <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-amber-200 text-amber-800">
                 <AlertCircleIcon className="w-6 h-6" />
               </div>
-              <div>
-                <h3 className="text-base font-bold text-amber-900">
+              <div className="min-w-0">
+                <h3 className="text-sm sm:text-base font-bold text-amber-900">
                   Potential Duplicate Household Detected
                 </h3>
                 <p className="text-xs text-amber-800 mt-1 leading-relaxed">
@@ -1289,7 +1611,7 @@ export default function FamilyManager() {
               </div>
             </div>
 
-            <div className="p-6 space-y-4">
+            <div className="p-4 sm:p-6 space-y-4">
               <div className="text-xs font-semibold uppercase tracking-wider text-slate-500">
                 Matching Existing Households:
               </div>
@@ -1298,7 +1620,7 @@ export default function FamilyManager() {
                   <div key={m.id} className="p-3 text-xs space-y-1 bg-slate-50/50">
                     <div className="flex items-center justify-between">
                       <span className="font-mono font-bold text-emerald-700">{m.familyCode}</span>
-                      <span className="font-semibold text-slate-800">{m.householdHeadName}</span>
+                      <span className="font-semibold text-slate-800 truncate ml-2">{m.householdHeadName}</span>
                     </div>
                     <div className="text-[11px] text-slate-500">
                       Village: {m.village?.name || "N/A"} &bull; Phone: {m.phoneNumber || "None"}
@@ -1311,11 +1633,12 @@ export default function FamilyManager() {
                 Please verify if this is indeed a distinct family before confirming. Confirming will create the record with a unique Family Code.
               </div>
 
-              <div className="flex items-center justify-end gap-3 pt-2">
+              <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2.5 sm:gap-3 pt-2">
                 <Button
                   type="button"
                   variant="outline"
                   onClick={() => setDuplicateWarning(null)}
+                  className="w-full sm:w-auto min-h-[44px] justify-center"
                 >
                   Cancel & Review
                 </Button>
@@ -1327,6 +1650,7 @@ export default function FamilyManager() {
                     handleSubmit(null, true);
                   }}
                   isLoading={isSubmitting}
+                  className="w-full sm:w-auto min-h-[44px] justify-center font-bold"
                 >
                   Confirm & Register Anyway
                 </Button>
@@ -1338,31 +1662,34 @@ export default function FamilyManager() {
 
       {/* View Family Details Modal */}
       {viewingFamily && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 overflow-y-auto animate-fadeIn">
-          <div className="my-8 w-full max-w-2xl rounded-2xl bg-white shadow-2xl border border-slate-200 overflow-hidden">
-            <div className="border-b border-slate-100 bg-slate-50/75 px-6 py-4 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-100 text-emerald-800 font-mono font-bold">
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/70 backdrop-blur-sm p-0 sm:p-4 flex min-h-full items-end sm:items-center justify-center animate-fadeIn">
+          <div className="max-sm:h-[90dvh] max-sm:rounded-t-3xl max-sm:w-full sm:max-h-[85vh] sm:rounded-2xl max-w-2xl w-full flex flex-col bg-white shadow-2xl border border-slate-200 overflow-hidden my-auto">
+            {/* Header */}
+            <div className="sticky top-0 z-20 border-b border-slate-100 bg-slate-50/95 backdrop-blur-sm px-4 py-3 sm:px-6 sm:py-4 flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-emerald-800 font-mono font-bold text-xs sm:text-sm">
                   FAM
                 </div>
-                <div>
-                  <h3 className="text-base font-bold text-slate-900">
+                <div className="min-w-0">
+                  <h3 className="text-base sm:text-lg font-bold text-slate-900 truncate">
                     {viewingFamily.familyCode}
                   </h3>
-                  <p className="text-xs text-slate-500">
+                  <p className="text-xs text-slate-500 truncate">
                     Household: {viewingFamily.householdHeadName}
                   </p>
                 </div>
               </div>
               <button
+                type="button"
                 onClick={() => setViewingFamily(null)}
-                className="text-slate-400 hover:text-slate-600 text-lg leading-none"
+                className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 transition-colors shrink-0"
+                aria-label="Close details"
               >
-                &times;
+                <CloseIcon className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="p-6 space-y-6">
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-5 sm:space-y-6 overscroll-contain">
               {/* Location Summary */}
               <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4 space-y-2">
                 <div className="text-xs font-bold text-slate-700 uppercase tracking-wider">
@@ -1371,19 +1698,19 @@ export default function FamilyManager() {
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
                   <div>
                     <span className="text-slate-400 block text-[10px]">Project</span>
-                    <span className="font-semibold text-slate-800">{viewingFamily.project?.name || "N/A"}</span>
+                    <span className="font-semibold text-slate-800 break-words">{viewingFamily.project?.name || "N/A"}</span>
                   </div>
                   <div>
                     <span className="text-slate-400 block text-[10px]">Mandal</span>
-                    <span className="font-semibold text-slate-800">{viewingFamily.mandal?.name || "N/A"}</span>
+                    <span className="font-semibold text-slate-800 break-words">{viewingFamily.mandal?.name || "N/A"}</span>
                   </div>
                   <div>
                     <span className="text-slate-400 block text-[10px]">Facility</span>
-                    <span className="font-semibold text-slate-800">{viewingFamily.facility?.name || "N/A"}</span>
+                    <span className="font-semibold text-slate-800 break-words">{viewingFamily.facility?.name || "N/A"}</span>
                   </div>
                   <div>
                     <span className="text-slate-400 block text-[10px]">Village</span>
-                    <span className="font-semibold text-slate-800">{viewingFamily.village?.name || "N/A"}</span>
+                    <span className="font-semibold text-slate-800 break-words">{viewingFamily.village?.name || "N/A"}</span>
                   </div>
                 </div>
               </div>
@@ -1483,12 +1810,12 @@ export default function FamilyManager() {
                   </div>
                 )}
               </div>
+            </div>
 
-              <div className="flex justify-end pt-2 border-t border-slate-100">
-                <Button type="button" variant="outline" onClick={() => setViewingFamily(null)}>
-                  Close
-                </Button>
-              </div>
+            <div className="sticky bottom-0 z-20 border-t border-slate-100 bg-white/95 backdrop-blur-sm p-3 sm:p-4 flex justify-end shrink-0">
+              <Button type="button" variant="outline" onClick={() => setViewingFamily(null)} className="w-full sm:w-auto min-h-[44px] justify-center">
+                Close
+              </Button>
             </div>
           </div>
         </div>

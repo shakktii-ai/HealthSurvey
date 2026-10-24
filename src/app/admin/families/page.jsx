@@ -34,8 +34,8 @@ export default async function AdminFamiliesPage() {
   return (
     <div className="space-y-6">
       {/* Header Banner */}
-      <div className="rounded-2xl bg-gradient-to-r from-slate-900 via-slate-800 to-emerald-950 p-6 text-white shadow-xl">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+      <div className="rounded-2xl bg-gradient-to-r from-slate-900 via-slate-800 to-emerald-950 p-4 sm:p-6 text-white shadow-xl">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
           <div className="space-y-1">
             <div className="flex items-center gap-2">
               <Badge variant="primary" size="sm">
@@ -43,14 +43,14 @@ export default async function AdminFamiliesPage() {
               </Badge>
               <span className="text-xs text-slate-300">Phase 03 Active</span>
             </div>
-            <h2 className="text-2xl font-bold tracking-tight text-white">
+            <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-white">
               Family Registration & Directory
             </h2>
             <p className="text-xs text-slate-300">
               Register household profiles across geographic catchments, track health access patterns, and flag priority follow-ups.
             </p>
           </div>
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/20 border border-emerald-400/30 text-emerald-400">
+          <div className="hidden sm:flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/20 border border-emerald-400/30 text-emerald-400 shrink-0">
             <HomeIcon className="w-5 h-5" />
           </div>
         </div>
