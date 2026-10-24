@@ -49,6 +49,11 @@ export default function SurveyRoundManager() {
   const [enableLightTouch, setEnableLightTouch] = useState(false);
   const [description, setDescription] = useState("");
 
+  // Attach Questions Modal State
+  const [attachModalRound, setAttachModalRound] = useState(null);
+  const [attachCategory, setAttachCategory] = useState("");
+  const [isAttaching, setIsAttaching] = useState(false);
+
   useEffect(() => {
     fetchProjects();
     fetchRounds();
@@ -116,6 +121,43 @@ export default function SurveyRoundManager() {
     setDescription(round.description || "");
     setError("");
     setIsModalOpen(true);
+  }
+
+  async function handleBulkAttachQuestions() {
+    if (!attachModalRound) return;
+    setIsAttaching(true);
+    setError("");
+    setActionMessage("");
+    try {
+      const payload = {
+        roundIds: [attachModalRound.id || attachModalRound._id],
+        action: "add",
+        projectId:
+          attachModalRound.projectId ||
+          attachModalRound.project?._id ||
+          attachModalRound.project?.id ||
+          attachModalRound.project,
+      };
+      if (attachCategory) {
+        payload.category = attachCategory;
+      }
+      const res = await fetch("/api/admin/questions/bulk-rounds", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Failed to attach questions to round");
+      }
+      setActionMessage(data.message || `Attached questions to round ${attachModalRound.code}`);
+      setAttachModalRound(null);
+      fetchRounds();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setIsAttaching(false);
+    }
   }
 
   function handleQuickTemplate(templateCode, templateName, timing) {
@@ -326,9 +368,21 @@ export default function SurveyRoundManager() {
                 </div>
 
                 <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
-                  <span className="text-slate-500 font-medium">
-                    Questions: <strong className="text-slate-800">{round.questionCount || 0}</strong>
-                  </span>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="text-slate-500 font-medium">
+                      Questions: <strong className="text-slate-800">{round.questionCount || 0}</strong>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAttachModalRound(round);
+                        setAttachCategory("");
+                      }}
+                      className="text-[11px] font-bold text-emerald-600 hover:text-emerald-800 hover:underline inline-flex items-center gap-0.5"
+                    >
+                      <span>+ Bulk Attach</span>
+                    </button>
+                  </div>
                   {round.enableLightTouch ? (
                     <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded">
                       <PhoneIcon className="w-3 h-3 text-emerald-600" />
@@ -548,6 +602,88 @@ export default function SurveyRoundManager() {
                 </Button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* BULK ATTACH QUESTIONS MODAL */}
+      {attachModalRound && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+          <div className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden text-xs">
+            <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-slate-900 via-slate-800 to-teal-950 text-white">
+              <div>
+                <h3 className="font-bold text-sm">Bulk Attach Questions to Round</h3>
+                <p className="text-[11px] text-teal-300">
+                  Round: {attachModalRound.code} — {attachModalRound.name}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setAttachModalRound(null)}
+                className="text-slate-400 hover:text-white p-1 rounded"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4">
+              <p className="text-slate-600">
+                Attach questions to this survey round in bulk so field workers can execute surveys under round{" "}
+                <strong>{attachModalRound.code}</strong>.
+              </p>
+
+              <div className="space-y-1.5">
+                <label className="font-semibold text-slate-700">Filter Category (Optional)</label>
+                <select
+                  value={attachCategory}
+                  onChange={(e) => setAttachCategory(e.target.value)}
+                  className="w-full rounded-lg border border-slate-300 bg-white py-1.5 px-2.5 text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                >
+                  <option value="">All Categories (Attach All Project Questions)</option>
+                  <option value="family">Household Health Impact Survey (family)</option>
+                  <option value="asha">ASHA Stakeholder Interview (asha)</option>
+                  <option value="facility_staff">Health Facility Staff Interview (facility_staff)</option>
+                  <option value="govt_official">Government Official Interview (govt_official)</option>
+                  <option value="light_touch">Light-Touch Verification (light_touch)</option>
+                </select>
+                <p className="text-[11px] text-slate-500">
+                  {attachCategory
+                    ? `Only active '${attachCategory}' questions will be attached to round ${attachModalRound.code}.`
+                    : `All active questions in this project will be attached to round ${attachModalRound.code}.`}
+                </p>
+              </div>
+
+              <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-900 space-y-1">
+                <div className="font-bold">✓ Safe Bulk Operation</div>
+                <p className="text-[11px] text-emerald-800">
+                  Existing survey round mappings on the questions are preserved; round{" "}
+                  <strong>{attachModalRound.code}</strong> will be added without duplicates.
+                </p>
+              </div>
+            </div>
+
+            <div className="p-4 border-t border-slate-100 flex items-center justify-between bg-slate-50">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setAttachModalRound(null)}
+                disabled={isAttaching}
+              >
+                Cancel
+              </Button>
+
+              <Button
+                type="button"
+                variant="primary"
+                size="sm"
+                disabled={isAttaching}
+                onClick={handleBulkAttachQuestions}
+                className="font-bold"
+              >
+                {isAttaching ? "Attaching..." : `Attach Questions to ${attachModalRound.code}`}
+              </Button>
+            </div>
           </div>
         </div>
       )}

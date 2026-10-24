@@ -678,3 +678,122 @@ export async function getQuestionVersions(questionId) {
     id: v._id.toString(),
   }));
 }
+
+/**
+ * Bulk update applicable survey rounds for multiple questions.
+ * 
+ * Supports:
+ * - action: 'add' (adds selected rounds to existing rounds without duplicates)
+ * - action: 'replace' (replaces existing rounds with selected rounds)
+ * - action: 'remove' (removes selected rounds from questions)
+ */
+export async function bulkUpdateQuestionRounds(
+  {
+    questionIds = [],
+    roundIds = [],
+    action = "add", // 'add' | 'replace' | 'remove'
+    projectId = "",
+    category = "",
+    status = "",
+  },
+  actor
+) {
+  await connectToDatabase();
+
+  if (!Array.isArray(roundIds) || roundIds.length === 0) {
+    throw new Error("At least one survey round must be specified.");
+  }
+
+  // Validate survey rounds exist
+  const validRounds = await SurveyRound.find({ _id: { $in: roundIds } }).lean();
+  if (validRounds.length === 0) {
+    throw new Error("Specified survey rounds were not found.");
+  }
+  const validRoundIds = validRounds.map((r) => r._id);
+
+  // Build question query
+  const query = {};
+  if (Array.isArray(questionIds) && questionIds.length > 0) {
+    query._id = { $in: questionIds };
+  } else {
+    // If no specific questionIds, must provide at least projectId or category to prevent accidental global overrides
+    if (!projectId && !category) {
+      throw new Error("Either questionIds array or projectId filter must be provided.");
+    }
+    if (projectId) query.project = projectId;
+    if (category) query.category = category;
+  }
+  if (status) {
+    query.status = status;
+  } else {
+    // Avoid updating archived questions by default
+    query.status = { $ne: "archived" };
+  }
+
+  const questions = await Question.find(query);
+  if (questions.length === 0) {
+    return {
+      success: true,
+      count: 0,
+      message: "No matching questions found to update.",
+    };
+  }
+
+  let updatedCount = 0;
+  const validRoundIdStrings = new Set(validRoundIds.map((r) => r.toString()));
+
+  for (const question of questions) {
+    const existingRoundStrings = (question.rounds || []).map((r) => r.toString());
+    let nextRoundStrings = [];
+
+    if (action === "replace") {
+      nextRoundStrings = Array.from(validRoundIdStrings);
+    } else if (action === "remove") {
+      nextRoundStrings = existingRoundStrings.filter((rId) => !validRoundIdStrings.has(rId));
+    } else {
+      // action === 'add' (default)
+      const merged = new Set([...existingRoundStrings, ...validRoundIdStrings]);
+      nextRoundStrings = Array.from(merged);
+    }
+
+    // Check if rounds actually changed
+    const isUnchanged =
+      existingRoundStrings.length === nextRoundStrings.length &&
+      existingRoundStrings.every((id) => nextRoundStrings.includes(id));
+
+    if (!isUnchanged) {
+      question.rounds = nextRoundStrings;
+      question.updatedBy = actor?.id || actor?._id;
+      await question.save();
+
+      // Keep latest QuestionVersion in sync
+      await QuestionVersion.updateOne(
+        { questionId: question._id, versionNumber: question.currentVersion || 1 },
+        { rounds: nextRoundStrings }
+      );
+
+      updatedCount++;
+    }
+  }
+
+  await logAudit({
+    actor,
+    entityType: "Question",
+    entityId: questions[0]?._id,
+    action: "BULK_UPDATE_ROUNDS",
+    after: {
+      action,
+      updatedCount,
+      targetQuestions: questions.length,
+      roundCodes: validRounds.map((r) => r.code),
+    },
+  });
+
+  return {
+    success: true,
+    count: updatedCount,
+    totalTargeted: questions.length,
+    message: `Successfully updated ${updatedCount} question(s) with ${validRounds.map((r) => r.code).join(", ")}.`,
+  };
+}
+

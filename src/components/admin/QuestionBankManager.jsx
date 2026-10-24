@@ -75,6 +75,13 @@ export default function QuestionBankManager() {
   const [editingId, setEditingId] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Bulk Rounds Management State
+  const [selectedQuestionIds, setSelectedQuestionIds] = useState([]);
+  const [isBulkRoundsModalOpen, setIsBulkRoundsModalOpen] = useState(false);
+  const [bulkRounds, setBulkRounds] = useState([]);
+  const [bulkActionType, setBulkActionType] = useState("add"); // 'add' | 'replace' | 'remove'
+  const [isBulkSubmitting, setIsBulkSubmitting] = useState(false);
+
   // Form Fields
   const [formProject, setFormProject] = useState("");
   const [formCategory, setFormCategory] = useState("family");
@@ -265,6 +272,60 @@ export default function QuestionBankManager() {
       setFormRounds(formRounds.filter((r) => r !== roundId));
     } else {
       setFormRounds([...formRounds, roundId]);
+    }
+  }
+
+  // Bulk Selection Helpers
+  function handleToggleSelectQuestion(id) {
+    setSelectedQuestionIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    );
+  }
+
+  function handleSelectAllOnPage() {
+    const pageIds = questions.map((q) => q.id || q._id);
+    const allSelected = pageIds.length > 0 && pageIds.every((id) => selectedQuestionIds.includes(id));
+    if (allSelected) {
+      setSelectedQuestionIds((prev) => prev.filter((id) => !pageIds.includes(id)));
+    } else {
+      setSelectedQuestionIds((prev) => Array.from(new Set([...prev, ...pageIds])));
+    }
+  }
+
+  function handleClearSelection() {
+    setSelectedQuestionIds([]);
+  }
+
+  async function handleApplyBulkRounds() {
+    if (bulkRounds.length === 0) {
+      setError("Please select at least one survey round to apply.");
+      return;
+    }
+    setIsBulkSubmitting(true);
+    setError("");
+    setActionMessage("");
+    try {
+      const res = await fetch("/api/admin/questions/bulk-rounds", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          questionIds: selectedQuestionIds,
+          roundIds: bulkRounds,
+          action: bulkActionType,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Failed to update survey rounds");
+      }
+      setActionMessage(data.message || `Successfully updated ${data.count} question(s) with selected survey rounds.`);
+      setIsBulkRoundsModalOpen(false);
+      setSelectedQuestionIds([]);
+      fetchQuestions();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setIsBulkSubmitting(false);
     }
   }
 
@@ -577,16 +638,75 @@ export default function QuestionBankManager() {
           </div>
         </div>
 
-        <div className="flex items-center justify-between text-xs text-slate-500 pt-1 border-t border-slate-100">
-          <span>
-            Showing <strong>{questions.length}</strong> of <strong>{totalCount}</strong> questions
-          </span>
-          {categoryFilter && (
-            <span className="font-semibold text-emerald-700">
-              Filtered Category: {QUESTIONNAIRE_CATEGORY_LABELS[categoryFilter]}
+        <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500 pt-2 border-t border-slate-100">
+          <div className="flex items-center gap-3">
+            <label className="flex items-center gap-1.5 cursor-pointer font-medium text-slate-700 hover:text-slate-900">
+              <input
+                type="checkbox"
+                checked={questions.length > 0 && questions.every((q) => selectedQuestionIds.includes(q.id || q._id))}
+                onChange={handleSelectAllOnPage}
+                className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-slate-300 cursor-pointer"
+              />
+              <span>Select All on Page ({questions.length})</span>
+            </label>
+            {selectedQuestionIds.length > 0 && (
+              <span className="bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded text-[11px]">
+                {selectedQuestionIds.length} selected
+              </span>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span>
+              Showing <strong>{questions.length}</strong> of <strong>{totalCount}</strong> questions
             </span>
-          )}
+            {categoryFilter && (
+              <span className="font-semibold text-emerald-700">
+                • {QUESTIONNAIRE_CATEGORY_LABELS[categoryFilter]}
+              </span>
+            )}
+          </div>
         </div>
+
+        {/* Selected Questions Bulk Action Banner */}
+        {selectedQuestionIds.length > 0 && (
+          <div className="mt-3 p-3 bg-gradient-to-r from-emerald-50 via-teal-50 to-slate-50 border border-emerald-200 rounded-xl flex flex-wrap items-center justify-between gap-3 shadow-xs animate-in fade-in">
+            <div className="flex items-center gap-2">
+              <span className="w-6 h-6 rounded-full bg-emerald-600 text-white font-bold flex items-center justify-center text-xs">
+                ✓
+              </span>
+              <div>
+                <p className="font-bold text-slate-900 text-xs">
+                  {selectedQuestionIds.length} Question{selectedQuestionIds.length > 1 ? "s" : ""} Selected
+                </p>
+                <p className="text-[11px] text-slate-500">
+                  Ready for bulk survey rounds assignment.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleClearSelection}
+                className="px-2.5 py-1 text-xs text-slate-600 hover:text-slate-800 font-medium"
+              >
+                Clear
+              </button>
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={() => {
+                  setBulkRounds([]);
+                  setIsBulkRoundsModalOpen(true);
+                }}
+                className="text-xs font-bold flex items-center gap-1.5 shadow-xs"
+              >
+                <span>⚡ Bulk Assign Survey Rounds</span>
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Questions List */}
@@ -617,11 +737,22 @@ export default function QuestionBankManager() {
             return (
               <Card
                 key={q.id || q._id}
-                className="hover:border-slate-300 transition-all shadow-xs overflow-hidden"
+                className={`hover:border-slate-300 transition-all shadow-xs overflow-hidden ${
+                  selectedQuestionIds.includes(q.id || q._id)
+                    ? "border-emerald-300 bg-emerald-50/15 ring-1 ring-emerald-400/40"
+                    : ""
+                }`}
               >
                 <div className="p-4 sm:p-5 flex flex-col md:flex-row md:items-start justify-between gap-4">
-                  {/* Left Column: Code, Category, Text */}
-                  <div className="space-y-2 flex-1 min-w-0">
+                  {/* Left Column: Checkbox, Code, Category, Text */}
+                  <div className="flex items-start gap-3 flex-1 min-w-0">
+                    <input
+                      type="checkbox"
+                      checked={selectedQuestionIds.includes(q.id || q._id)}
+                      onChange={() => handleToggleSelectQuestion(q.id || q._id)}
+                      className="mt-1 w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-slate-300 cursor-pointer shrink-0"
+                    />
+                    <div className="space-y-2 flex-1 min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="font-mono text-xs font-extrabold bg-slate-900 text-white px-2.5 py-0.5 rounded shadow-xs">
                         {q.code}
@@ -678,8 +809,8 @@ export default function QuestionBankManager() {
                       </span>
 
                       {/* Rounds */}
-                      {q.rounds?.length > 0 && (
-                        <div className="flex items-center gap-1">
+                      {q.rounds?.length > 0 ? (
+                        <div className="flex items-center gap-1 flex-wrap">
                           <span>Rounds:</span>
                           {Array.from(
                             new Map(
@@ -700,6 +831,23 @@ export default function QuestionBankManager() {
                             );
                           })}
                         </div>
+                      ) : (
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200 px-2 py-0.5 rounded flex items-center gap-1">
+                            ⚠️ No Rounds Assigned
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedQuestionIds([q.id || q._id]);
+                              setBulkRounds([]);
+                              setIsBulkRoundsModalOpen(true);
+                            }}
+                            className="text-[11px] font-bold text-emerald-600 hover:text-emerald-800 underline"
+                          >
+                            + Assign
+                          </button>
+                        </div>
                       )}
 
                       {/* Conditional indicator */}
@@ -710,8 +858,9 @@ export default function QuestionBankManager() {
                       )}
                     </div>
                   </div>
+                </div>
 
-                  {/* Right Column: Actions */}
+                {/* Right Column: Actions */}
                   <div className="flex items-center md:flex-col lg:flex-row gap-1.5 shrink-0 self-end md:self-start">
                     <Button
                       variant="outline"
@@ -1041,7 +1190,28 @@ export default function QuestionBankManager() {
 
               {/* Applicable Survey Rounds */}
               <div className="space-y-1.5">
-                <label className="font-semibold text-slate-700">Applicable Survey Rounds</label>
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <label className="font-semibold text-slate-700">Applicable Survey Rounds</label>
+                  {projectRounds.length > 0 && (
+                    <div className="flex items-center gap-2 text-xs">
+                      <button
+                        type="button"
+                        onClick={() => setFormRounds(projectRounds.map((r) => r.id || r._id))}
+                        className="text-emerald-700 hover:text-emerald-800 font-bold hover:underline"
+                      >
+                        Select All ({projectRounds.length})
+                      </button>
+                      <span className="text-slate-300">|</span>
+                      <button
+                        type="button"
+                        onClick={() => setFormRounds([])}
+                        className="text-slate-500 hover:text-slate-700 hover:underline"
+                      >
+                        Clear All
+                      </button>
+                    </div>
+                  )}
+                </div>
                 {projectRounds.length === 0 ? (
                   <p className="text-[11px] text-slate-400 italic">
                     No survey rounds configured yet for this project. Create rounds under Survey Rounds.
@@ -1519,6 +1689,190 @@ export default function QuestionBankManager() {
             <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-end">
               <Button variant="outline" size="sm" onClick={() => setVersionsModalQuestion(null)}>
                 Close
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* BULK ASSIGN SURVEY ROUNDS MODAL */}
+      {isBulkRoundsModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+          <div className="relative w-full max-w-lg bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden text-xs">
+            <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-slate-900 via-slate-800 to-teal-950 text-white">
+              <div className="flex items-center gap-2">
+                <span className="text-emerald-400 font-bold text-sm">⚡</span>
+                <h3 className="font-bold text-sm">Bulk Assign Applicable Survey Rounds</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsBulkRoundsModalOpen(false)}
+                className="text-slate-400 hover:text-white p-1 rounded"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4 max-h-[80vh] overflow-y-auto">
+              <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold text-slate-700">Selected Questions:</span>
+                  <Badge variant="primary" size="sm">
+                    {selectedQuestionIds.length} Question{selectedQuestionIds.length > 1 ? "s" : ""}
+                  </Badge>
+                </div>
+                <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto p-1 bg-white rounded border border-slate-200">
+                  {questions
+                    .filter((q) => selectedQuestionIds.includes(q.id || q._id))
+                    .map((q) => (
+                      <span
+                        key={q.id || q._id}
+                        className="font-mono text-[10px] font-bold bg-slate-100 text-slate-800 px-1.5 py-0.5 rounded border border-slate-200"
+                      >
+                        {q.code}
+                      </span>
+                    ))}
+                </div>
+              </div>
+
+              {/* Assignment Mode */}
+              <div className="space-y-1.5">
+                <label className="font-semibold text-slate-700">Assignment Mode</label>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setBulkActionType("add")}
+                    className={`p-2.5 rounded-lg border text-left transition-all ${
+                      bulkActionType === "add"
+                        ? "border-emerald-500 bg-emerald-50/50 text-emerald-950 ring-1 ring-emerald-500"
+                        : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                    }`}
+                  >
+                    <div className="font-bold text-xs flex items-center gap-1.5">
+                      <span>+ Add to Existing</span>
+                    </div>
+                    <p className="text-[10px] text-slate-500 mt-0.5">
+                      Keep current rounds and append chosen rounds (Recommended).
+                    </p>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setBulkActionType("replace")}
+                    className={`p-2.5 rounded-lg border text-left transition-all ${
+                      bulkActionType === "replace"
+                        ? "border-emerald-500 bg-emerald-50/50 text-emerald-950 ring-1 ring-emerald-500"
+                        : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                    }`}
+                  >
+                    <div className="font-bold text-xs flex items-center gap-1.5">
+                      <span>⇄ Replace All</span>
+                    </div>
+                    <p className="text-[10px] text-slate-500 mt-0.5">
+                      Override all existing rounds with chosen rounds.
+                    </p>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setBulkActionType("remove")}
+                    className={`p-2.5 rounded-lg border text-left transition-all ${
+                      bulkActionType === "remove"
+                        ? "border-rose-500 bg-rose-50/50 text-rose-950 ring-1 ring-rose-500"
+                        : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                    }`}
+                  >
+                    <div className="font-bold text-xs flex items-center gap-1.5">
+                      <span>− Remove Rounds</span>
+                    </div>
+                    <p className="text-[10px] text-slate-500 mt-0.5">
+                      Unassign chosen rounds from the selected questions.
+                    </p>
+                  </button>
+                </div>
+              </div>
+
+              {/* Select Survey Rounds */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="font-semibold text-slate-700">Select Survey Rounds</label>
+                  {rounds.length > 0 && (
+                    <div className="flex items-center gap-2 text-xs">
+                      <button
+                        type="button"
+                        onClick={() => setBulkRounds(rounds.map((r) => r.id || r._id))}
+                        className="text-emerald-700 hover:text-emerald-800 font-bold hover:underline"
+                      >
+                        Select All ({rounds.length})
+                      </button>
+                      <span className="text-slate-300">|</span>
+                      <button
+                        type="button"
+                        onClick={() => setBulkRounds([])}
+                        className="text-slate-500 hover:text-slate-700 hover:underline"
+                      >
+                        Clear
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {rounds.length === 0 ? (
+                  <p className="text-slate-400 italic">No survey rounds found.</p>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto p-1">
+                    {rounds.map((r) => {
+                      const isChecked = bulkRounds.includes(r.id || r._id);
+                      return (
+                        <button
+                          key={r.id || r._id}
+                          type="button"
+                          onClick={() => {
+                            if (isChecked) {
+                              setBulkRounds(bulkRounds.filter((id) => id !== (r.id || r._id)));
+                            } else {
+                              setBulkRounds([...bulkRounds, r.id || r._id]);
+                            }
+                          }}
+                          className={`p-2 rounded-lg border text-left flex items-center justify-between transition-colors ${
+                            isChecked
+                              ? "bg-emerald-50 text-emerald-900 border-emerald-300 font-semibold"
+                              : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
+                          }`}
+                        >
+                          <div>
+                            <span className="font-mono font-bold">{r.code}</span>
+                            <span className="ml-1 text-[11px] text-slate-500">({r.name})</span>
+                          </div>
+                          {isChecked && <CheckCircleIcon className="w-4 h-4 text-emerald-600 shrink-0" />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="p-4 border-t border-slate-100 flex items-center justify-between bg-slate-50">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setIsBulkRoundsModalOpen(false)}
+                disabled={isBulkSubmitting}
+              >
+                Cancel
+              </Button>
+
+              <Button
+                type="button"
+                variant="primary"
+                size="sm"
+                disabled={isBulkSubmitting || bulkRounds.length === 0}
+                onClick={handleApplyBulkRounds}
+                className="font-bold flex items-center gap-1.5"
+              >
+                {isBulkSubmitting ? "Applying Changes..." : `Apply to ${selectedQuestionIds.length} Questions`}
               </Button>
             </div>
           </div>
