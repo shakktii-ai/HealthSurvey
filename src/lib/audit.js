@@ -31,9 +31,22 @@ function sanitizeData(data) {
 export async function logAudit({ actor, entityType, entityId, action, before = null, after = null }) {
   try {
     await connectToDatabase();
+
+    let actorRole = actor?.role;
+    if (!actorRole) {
+      if (actor?.isFieldWorker || actor?.email?.includes("worker")) {
+        actorRole = "field_worker";
+      } else if (actor?.isDonor || actor?.email?.includes("donor")) {
+        actorRole = "donor";
+      } else {
+        actorRole = "superadmin";
+      }
+    }
+
     await AuditLog.create({
-      actorId: actor.id || actor._id,
-      actorEmail: actor.email,
+      actorId: actor?.id || actor?._id,
+      actorEmail: actor?.email || "system@healthsurvey.org",
+      actorRole,
       entityType,
       entityId,
       action,

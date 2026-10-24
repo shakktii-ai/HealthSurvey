@@ -16,27 +16,14 @@ const AuditLogSchema = new mongoose.Schema(
       required: true,
       trim: true,
     },
+    actorRole: {
+      type: String,
+      default: "superadmin",
+      index: true,
+    },
     entityType: {
       type: String,
       required: true,
-      enum: [
-        "Project",
-        "Mandal",
-        "Facility",
-        "Village",
-        "Stakeholder",
-        "Family",
-        "User",
-        "SurveyRound",
-        "Question",
-        "QuestionVersion",
-        "Assignment",
-        "StakeholderTask",
-        "SurveyResponse",
-        "DataQualityScan",
-        "DataQualityIssue",
-        "DonorProjectAccess",
-      ],
       index: true,
     },
     entityId: {
@@ -47,22 +34,6 @@ const AuditLogSchema = new mongoose.Schema(
     action: {
       type: String,
       required: true,
-      enum: [
-        "CREATE",
-        "UPDATE",
-        "STATUS_CHANGE",
-        "DELETE",
-        "SCAN_START",
-        "SCAN_COMPLETE",
-        "ACKNOWLEDGE",
-        "RESOLVE",
-        "AMEND",
-        "INSPECT",
-        "EXPORT",
-        "GRANT_ACCESS",
-        "REVOKE_ACCESS",
-        "NOT_REQUIRED",
-      ],
       index: true,
     },
     before: {
@@ -80,9 +51,13 @@ const AuditLogSchema = new mongoose.Schema(
     },
   },
   {
-    timestamps: false,
+    timestamps: true,
   }
 );
+
+AuditLogSchema.index({ timestamp: -1 });
+AuditLogSchema.index({ actorRole: 1, timestamp: -1 });
+AuditLogSchema.index({ entityType: 1, timestamp: -1 });
 
 if (mongoose.models && mongoose.models.AuditLog) {
   delete mongoose.models.AuditLog;

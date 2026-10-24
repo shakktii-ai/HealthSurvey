@@ -110,10 +110,10 @@ export async function getDashboardMetrics() {
       })
     );
 
-    // 3. Fetch Recent Administrative Activity (Audit Log) - PII safe
+    // 3. Fetch Recent Activity (Audit Log) - PII safe
     const recentAuditLogs = await AuditLog.find()
-      .sort({ createdAt: -1 })
-      .limit(8)
+      .sort({ timestamp: -1, _id: -1 })
+      .limit(10)
       .lean();
 
     const recentActivity = recentAuditLogs.map((log) => {
@@ -125,14 +125,22 @@ export async function getDashboardMetrics() {
       if (log.action === "ACKNOWLEDGE") description = `Data quality anomaly acknowledged`;
       if (log.action === "AMEND") description = `Survey response post-submission amendment`;
       if (log.action === "SCAN_COMPLETE") description = `Automated data quality scan completed`;
+      if (log.action === "DELETE") description = `${log.entityType} removed`;
+      if (log.action === "SUBMIT") description = `Survey response submitted`;
+      if (log.action === "DRAFT") description = `Survey response draft updated`;
+      if (log.action === "ASSIGN") description = `Survey assignment issued`;
+      if (log.action === "IMPORT") description = `Bulk records imported`;
+
+      const role = log.actorRole || (log.actorEmail?.includes("worker") ? "field_worker" : "superadmin");
 
       return {
         id: log._id.toString(),
         actorEmail: log.actorEmail || "System",
+        actorRole: role,
         action: log.action,
         entityType: log.entityType,
         description,
-        timestamp: log.createdAt,
+        timestamp: log.timestamp || log.createdAt || (log._id && typeof log._id.getTimestamp === "function" ? log._id.getTimestamp() : new Date()),
       };
     });
 

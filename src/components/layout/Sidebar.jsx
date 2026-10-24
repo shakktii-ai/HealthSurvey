@@ -19,6 +19,7 @@ import {
   QuestionMarkCircleIcon,
   CalendarIcon,
   UploadIcon,
+  HistoryIcon,
 } from "@/components/common/Icons";
 
 export default function Sidebar({ isOpen, onClose }) {
@@ -65,6 +66,7 @@ export default function Sidebar({ isOpen, onClose }) {
     { name: "Data Quality", href: "/admin/data-quality", icon: ShieldCheckIcon },
     { name: "Survey Responses", href: "/admin/survey-responses", icon: ClipboardIcon },
     { name: "Donor Access", href: "/admin/donor-access", icon: UsersIcon },
+    { name: "Audit & Activity Logs", href: "/admin/audit-logs", icon: HistoryIcon },
   ];
 
   const isSuperadmin = currentUser?.role === "superadmin";
