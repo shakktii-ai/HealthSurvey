@@ -24,6 +24,7 @@ import {
   CameraIcon,
   UploadIcon,
   PlusIcon,
+  TrashIcon,
 } from "@/components/common/Icons";
 import AddStakeholderModal from "@/components/common/AddStakeholderModal";
 import { shouldDisplayQuestion } from "@/utils/conditionEvaluator";
@@ -348,11 +349,15 @@ export default function SurveyExecutionForm({ taskId, taskType = "family", categ
       const isVisible = shouldDisplayQuestion(q, answers);
       if (isVisible && q.isRequired) {
         const val = answers[q.code];
-        const isAnswered =
+        let isAnswered =
           val !== undefined &&
           val !== null &&
           val !== "" &&
           (!Array.isArray(val) || val.length > 0);
+
+        if (isAnswered && typeof val === "object" && !Array.isArray(val)) {
+          isAnswered = !!val.url;
+        }
 
         if (!isAnswered) {
           const qText = language === "te" && q.text?.te ? q.text.te : q.text?.en;
@@ -440,7 +445,13 @@ export default function SurveyExecutionForm({ taskId, taskType = "family", categ
   const visibleQuestions = questions.filter((q) => shouldDisplayQuestion(q, answers));
   const answeredCount = visibleQuestions.filter((q) => {
     const v = answers[q.code];
-    return v !== undefined && v !== null && v !== "" && (!Array.isArray(v) || v.length > 0);
+    return (
+      v !== undefined &&
+      v !== null &&
+      v !== "" &&
+      (!Array.isArray(v) || v.length > 0) &&
+      (typeof v !== "object" || Array.isArray(v) || !!v.url)
+    );
   }).length;
   const progressPercent =
     visibleQuestions.length > 0 ? Math.round((answeredCount / visibleQuestions.length) * 100) : 0;
@@ -1107,6 +1118,201 @@ export default function SurveyExecutionForm({ taskId, taskType = "family", categ
                         })}
                       </div>
                     )}
+
+                    {/* Image / Photo with GPS Geotag (Click Image or Upload from Device) */}
+                    {(q.answerType === "image" || q.answerType === "photo" || q.answerType === "camera") && (
+                      <div className="space-y-3">
+                        {(() => {
+                          const isUploading = uploadingImageCode === q.code;
+                          const imageUrl =
+                            typeof currentVal === "string"
+                              ? currentVal
+                              : typeof currentVal === "object" && currentVal !== null
+                              ? currentVal.url
+                              : null;
+                          const geotag =
+                            typeof currentVal === "object" && currentVal !== null
+                              ? currentVal.geotag
+                              : null;
+
+                          if (isUploading) {
+                            return (
+                              <div className="flex flex-col items-center justify-center p-6 border-2 border-dashed border-emerald-400 rounded-xl bg-emerald-50/60 text-center animate-pulse">
+                                <div className="w-8 h-8 border-3 border-emerald-600 border-t-transparent rounded-full animate-spin mb-2.5" />
+                                <p className="text-xs font-bold text-emerald-950">
+                                  {uploadStatusMsg || "Processing image & acquiring GPS..."}
+                                </p>
+                                <p className="text-[11px] text-emerald-700 mt-0.5">
+                                  {language === "te"
+                                    ? "దయచేసి వేచి ఉండండి, ఫోటో అప్‌లోడ్ అవుతోంది..."
+                                    : "Please wait, uploading photo and acquiring live coordinates..."}
+                                </p>
+                              </div>
+                            );
+                          }
+
+                          if (imageUrl) {
+                            return (
+                              <div className="border border-slate-200 rounded-xl p-3 bg-slate-50/70 space-y-3">
+                                <div className="relative group overflow-hidden rounded-lg bg-slate-900/5 border border-slate-200 max-h-56 flex justify-center items-center">
+                                  <a
+                                    href={imageUrl}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    title="Click to view full image"
+                                    className="block cursor-pointer hover:opacity-95 transition-opacity"
+                                  >
+                                    <img
+                                      src={imageUrl}
+                                      alt={`Evidence for ${q.code}`}
+                                      className="max-h-56 w-auto object-contain rounded-lg"
+                                    />
+                                  </a>
+                                </div>
+
+                                {/* Geotag Badge */}
+                                {geotag && (
+                                  <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-600 bg-white p-2.5 rounded-lg border border-slate-200 shadow-2xs">
+                                    <div className="flex items-center gap-1.5 font-medium">
+                                      <MapPinIcon className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                                      {geotag.latitude !== null && geotag.longitude !== null ? (
+                                        <span>
+                                          GPS: <strong className="text-slate-900">{geotag.latitude?.toFixed(5)}°, {geotag.longitude?.toFixed(5)}°</strong>
+                                          {geotag.accuracy ? ` (±${Math.round(geotag.accuracy)}m)` : ""}
+                                        </span>
+                                      ) : (
+                                        <span className="text-amber-700 font-normal">Location unavailable</span>
+                                      )}
+                                    </div>
+                                    {geotag.latitude !== null && geotag.longitude !== null && (
+                                      <a
+                                        href={`https://www.google.com/maps?q=${geotag.latitude},${geotag.longitude}`}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="text-emerald-700 hover:text-emerald-800 font-semibold underline text-[11px]"
+                                      >
+                                        Maps ↗
+                                      </a>
+                                    )}
+                                  </div>
+                                )}
+
+                                {/* Actions: Retake with Camera, Upload New Image, Remove */}
+                                <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-slate-200/60">
+                                  <label
+                                    htmlFor={`camera-input-${q.code}`}
+                                    className="cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 hover:bg-emerald-100 transition-colors shadow-2xs"
+                                  >
+                                    <CameraIcon className="w-3.5 h-3.5 text-emerald-700" />
+                                    <span>{language === "te" ? "మళ్లీ ఫోటో తీయండి" : "Retake Photo"}</span>
+                                  </label>
+
+                                  <label
+                                    htmlFor={`upload-input-${q.code}`}
+                                    className="cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 transition-colors shadow-2xs"
+                                  >
+                                    <UploadIcon className="w-3.5 h-3.5 text-slate-600" />
+                                    <span>{language === "te" ? "వేరే చిత్రం అప్‌లోడ్ చేయండి" : "Upload Different Image"}</span>
+                                  </label>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => handleAnswerChange(q.code, null)}
+                                    className="cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-rose-50 border border-rose-200 text-rose-700 hover:bg-rose-100 transition-colors ml-auto shadow-2xs"
+                                  >
+                                    <TrashIcon className="w-3.5 h-3.5" />
+                                    <span>{language === "te" ? "తొలగించు" : "Remove"}</span>
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          }
+
+                          // No Image Uploaded Yet: Show Both Click Image (Camera) & Upload Image (Gallery)
+                          return (
+                            <div className="space-y-2">
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                {/* Option 1: Click Image / Take Photo via Camera */}
+                                <label
+                                  htmlFor={`camera-input-${q.code}`}
+                                  className="cursor-pointer flex items-center gap-3 p-3.5 rounded-xl border-2 border-emerald-500 bg-emerald-50/50 hover:bg-emerald-100/70 active:scale-[0.99] transition-all group shadow-xs"
+                                >
+                                  <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-sm group-hover:scale-105 transition-transform">
+                                    <CameraIcon className="w-5 h-5" />
+                                  </div>
+                                  <div className="text-left">
+                                    <p className="text-xs font-bold text-emerald-950">
+                                      {language === "te" ? "ఫోటో తీయండి (కెమెరా)" : "Click Image / Take Photo"}
+                                    </p>
+                                    <p className="text-[11px] text-emerald-700 mt-0.5">
+                                      {language === "te" ? "కెమెరాను తెరవండి" : "Open camera & capture"}
+                                    </p>
+                                  </div>
+                                </label>
+
+                                {/* Option 2: Upload Image / Choose File from Storage/Gallery */}
+                                <label
+                                  htmlFor={`upload-input-${q.code}`}
+                                  className="cursor-pointer flex items-center gap-3 p-3.5 rounded-xl border-2 border-dashed border-slate-300 bg-slate-50/70 hover:bg-slate-100/90 active:scale-[0.99] transition-all group shadow-xs"
+                                >
+                                  <div className="w-10 h-10 rounded-xl bg-slate-700 text-white flex items-center justify-center shrink-0 shadow-sm group-hover:scale-105 transition-transform">
+                                    <UploadIcon className="w-5 h-5" />
+                                  </div>
+                                  <div className="text-left">
+                                    <p className="text-xs font-bold text-slate-900">
+                                      {language === "te" ? "చిత్రాన్ని అప్‌లోడ్ చేయండి" : "Upload Image / Choose File"}
+                                    </p>
+                                    <p className="text-[11px] text-slate-500 mt-0.5">
+                                      {language === "te" ? "గ్యాలరీ నుండి ఎంచుకోండి" : "Select from device gallery"}
+                                    </p>
+                                  </div>
+                                </label>
+                              </div>
+
+                              <p className="text-[11px] text-slate-500 flex items-center gap-1.5 pt-0.5">
+                                <MapPinIcon className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                                <span>
+                                  {language === "te"
+                                    ? "లైవ్ GPS లొకేషన్ ఆటోమేటిక్‌గా ఫోటోకు జోడించబడుతుంది."
+                                    : "Live GPS coordinates are automatically recorded & attached with the image."}
+                                </span>
+                              </p>
+                            </div>
+                          );
+                        })()}
+
+                        {/* Hidden input for Camera capture */}
+                        <input
+                          id={`camera-input-${q.code}`}
+                          type="file"
+                          accept="image/*"
+                          capture="environment"
+                          className="sr-only"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              handleImageCapture(q.code, file);
+                            }
+                            e.target.value = "";
+                          }}
+                        />
+
+                        {/* Hidden input for Gallery / Storage upload */}
+                        <input
+                          id={`upload-input-${q.code}`}
+                          type="file"
+                          accept="image/*"
+                          className="sr-only"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              handleImageCapture(q.code, file);
+                            }
+                            e.target.value = "";
+                          }}
+                        />
+                      </div>
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -1182,19 +1388,35 @@ export default function SurveyExecutionForm({ taskId, taskType = "family", categ
           <div className="max-h-72 overflow-y-auto border border-slate-200 rounded-xl divide-y divide-slate-100 bg-white">
             {visibleQuestions.map((q) => {
               const val = answers[q.code];
+              const isImage =
+                q.answerType === "image" ||
+                q.answerType === "photo" ||
+                q.answerType === "camera" ||
+                (typeof val === "object" && val !== null && val.url);
+              const imageUrl = typeof val === "string" ? val : val?.url;
               const displayVal = Array.isArray(val)
                 ? val.join(", ")
                 : val === null || val === undefined || val === ""
                 ? "(Unanswered)"
+                : isImage && imageUrl
+                ? "📷 Photo Attached"
                 : String(val);
+
               return (
-                <div key={q.code} className="p-2.5 flex justify-between gap-4">
+                <div key={q.code} className="p-2.5 flex justify-between items-center gap-4">
                   <div className="space-y-0.5 max-w-[65%]">
                     <span className="font-mono text-[10px] text-slate-400">{q.code}</span>
                     <p className="font-medium text-slate-800 line-clamp-2">{q.text?.en}</p>
                   </div>
-                  <div className="text-right shrink-0">
-                    <span className="font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                  <div className="text-right shrink-0 flex items-center gap-2">
+                    {isImage && imageUrl && (
+                      <img
+                        src={imageUrl}
+                        alt="Evidence preview"
+                        className="w-8 h-8 rounded object-cover border border-slate-200 shrink-0"
+                      />
+                    )}
+                    <span className="font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 text-xs">
                       {displayVal}
                     </span>
                   </div>

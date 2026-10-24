@@ -5,14 +5,8 @@ import StakeholderTask from "@/models/StakeholderTask";
 import SurveyResponse from "@/models/SurveyResponse";
 import Question from "@/models/Question";
 import QuestionVersion from "@/models/QuestionVersion";
-import SurveyRound from "@/models/SurveyRound";
 import Family from "@/models/Family";
 import Stakeholder from "@/models/Stakeholder";
-import Project from "@/models/Project";
-import Village from "@/models/Village";
-import Mandal from "@/models/Mandal";
-import Facility from "@/models/Facility";
-import User from "@/models/User";
 import Counter from "@/models/Counter";
 import { shouldDisplayQuestion } from "@/utils/conditionEvaluator";
 import { logAudit } from "@/lib/audit";
@@ -541,11 +535,15 @@ export async function submitSurveyResponse(
     const isVisible = shouldDisplayQuestion(q, answers);
     if (isVisible && q.isRequired) {
       const val = answers[q.code];
-      const isAnswered =
+      let isAnswered =
         val !== undefined &&
         val !== null &&
         val !== "" &&
         (!Array.isArray(val) || val.length > 0);
+
+      if (isAnswered && typeof val === "object" && !Array.isArray(val)) {
+        isAnswered = !!val.url;
+      }
 
       if (!isAnswered) {
         const err = new Error(
