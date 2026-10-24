@@ -34,7 +34,11 @@ async function verifyTaskOwnership({ assignmentId = "", stakeholderTaskId = "" }
     task = await Assignment.findById(assignmentId)
       .populate("project", "name code")
       .populate("surveyRound", "name code enableLightTouch status")
-      .populate("family", "familyCode householdHeadName village mandal facility status")
+      .populate({
+        path: "family",
+        select: "familyCode householdHeadName village mandal facility status asha",
+        populate: { path: "asha", select: "fullName designation phone stakeholderType" },
+      })
       .populate("village", "name code")
       .populate("mandal", "name code")
       .populate("facility", "name code");
@@ -48,7 +52,9 @@ async function verifyTaskOwnership({ assignmentId = "", stakeholderTaskId = "" }
     task = await StakeholderTask.findById(stakeholderTaskId)
       .populate("project", "name code")
       .populate("surveyRound", "name code enableLightTouch status")
-      .populate("stakeholder", "fullName stakeholderType designation phone");
+      .populate("stakeholder", "fullName stakeholderType designation phone village mandal facility")
+      .populate("mandal", "name code")
+      .populate("facility", "name code");
     taskType = "stakeholder";
   }
 
@@ -150,6 +156,43 @@ export async function getExecutionSurveyData(
     }
   }
 
+  // Query available stakeholders for easy switching / selection
+  let availableStakeholders = [];
+  try {
+    const isStakeholderTask = taskType === "stakeholder";
+    const stTypeFilter = isStakeholderTask
+      ? targetCategory === "asha"
+        ? "asha"
+        : targetCategory === "govt_official"
+        ? "government_official"
+        : { $in: ["facility_staff", "doctor"] }
+      : "asha";
+
+    const stQuery = {
+      project: projectId,
+      stakeholderType: stTypeFilter,
+      isActive: true,
+    };
+    const filterMandalId = task.mandal?._id || task.mandal || task.family?.mandal;
+    if (filterMandalId) {
+      stQuery.mandal = filterMandalId;
+    }
+    const stDocs = await Stakeholder.find(stQuery)
+      .select("fullName designation stakeholderType phone village mandal facility")
+      .sort({ fullName: 1 })
+      .lean();
+
+    availableStakeholders = stDocs.map((s) => ({
+      id: s._id.toString(),
+      name: s.fullName,
+      designation: s.designation,
+      type: s.stakeholderType,
+      phone: s.phone || "",
+    }));
+  } catch (err) {
+    console.warn("Failed to load availableStakeholders for survey session:", err.message);
+  }
+
   return {
     task: {
       id: task._id.toString(),
@@ -158,6 +201,9 @@ export async function getExecutionSurveyData(
       status: task.status,
       startedAt: task.startedAt,
       completedAt: task.completedAt,
+      mandalId: (task.mandal?._id || task.mandal || task.family?.mandal)?._id?.toString() || (task.mandal?._id || task.mandal || task.family?.mandal)?.toString() || "",
+      facilityId: (task.facility?._id || task.facility || task.family?.facility)?._id?.toString() || (task.facility?._id || task.facility || task.family?.facility)?.toString() || "",
+      villageId: (task.village?._id || task.village || task.family?.village)?._id?.toString() || (task.village?._id || task.village || task.family?.village)?.toString() || "",
       family: task.family
         ? {
             id: task.family._id.toString(),
@@ -165,6 +211,13 @@ export async function getExecutionSurveyData(
             householdHeadName: task.family.householdHeadName,
             village: task.village?.name || "",
             mandal: task.mandal?.name || "",
+            asha: task.family.asha
+              ? {
+                  id: task.family.asha._id ? task.family.asha._id.toString() : task.family.asha.toString(),
+                  fullName: task.family.asha.fullName || "",
+                  designation: task.family.asha.designation || "ASHA Worker",
+                }
+              : null,
           }
         : null,
       stakeholder: task.stakeholder
@@ -173,9 +226,11 @@ export async function getExecutionSurveyData(
             fullName: task.stakeholder.fullName,
             type: task.stakeholder.stakeholderType,
             designation: task.stakeholder.designation,
+            phone: task.stakeholder.phone || "",
           }
         : null,
     },
+    availableStakeholders,
     project: {
       id: task.project._id.toString(),
       name: task.project.name,
@@ -855,4 +910,93 @@ export async function amendSurveyResponse({ responseId, answers, reason }, admin
     status: response.status,
   };
 }
+
+/**
+ * 8. Update linked Stakeholder for an execution session (StakeholderTask or Family Assignment)
+ */
+export async function updateSurveyStakeholder(
+  { assignmentId = "", stakeholderTaskId = "", stakeholderId = "" },
+  worker
+) {
+  await connectToDatabase();
+
+  if (!stakeholderId || !mongoose.Types.ObjectId.isValid(stakeholderId)) {
+    const err = new Error("Valid stakeholderId is required");
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const stakeholderDoc = await Stakeholder.findById(stakeholderId);
+  if (!stakeholderDoc) {
+    const err = new Error("Stakeholder record not found");
+    err.statusCode = 404;
+    throw err;
+  }
+
+  const { task, taskType } = await verifyTaskOwnership(
+    { assignmentId, stakeholderTaskId },
+    worker
+  );
+
+  if (taskType === "stakeholder") {
+    const previousStakeholderId = task.stakeholder?._id || task.stakeholder;
+    task.stakeholder = stakeholderDoc._id;
+    await task.save();
+
+    // Also update existing draft SurveyResponse if any
+    await SurveyResponse.updateMany(
+      { stakeholderTask: task._id, status: "draft" },
+      {
+        stakeholder: stakeholderDoc._id,
+        respondentName: stakeholderDoc.fullName,
+        respondentType: stakeholderDoc.stakeholderType,
+      }
+    );
+
+    // If category is asha, link to family in catchment if applicable
+    if (task.category === "asha" && task.mandal) {
+      await Family.updateMany(
+        { project: task.project, mandal: task.mandal, asha: null },
+        { asha: stakeholderDoc._id }
+      );
+    }
+
+    await logAudit({
+      actor: worker,
+      entityType: "StakeholderTask",
+      entityId: task._id,
+      action: "UPDATE",
+      before: { stakeholder: previousStakeholderId },
+      after: { stakeholder: stakeholderDoc._id, stakeholderName: stakeholderDoc.fullName },
+    });
+  } else {
+    // taskType === "family"
+    const familyId = task.family?._id || task.family;
+    if (familyId) {
+      await Family.findByIdAndUpdate(familyId, {
+        asha: stakeholderDoc._id,
+      });
+
+      // Also ensure any draft response is updated
+      await SurveyResponse.updateMany(
+        { assignment: task._id, status: "draft" },
+        { stakeholder: stakeholderDoc._id }
+      );
+
+      await logAudit({
+        actor: worker,
+        entityType: "Family",
+        entityId: familyId,
+        action: "UPDATE",
+        after: { asha: stakeholderDoc._id, ashaName: stakeholderDoc.fullName },
+      });
+    }
+  }
+
+  return {
+    success: true,
+    stakeholder: stakeholderDoc.toSafeObject(),
+  };
+}
+
 

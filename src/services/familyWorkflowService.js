@@ -177,6 +177,17 @@ export async function getFamilyWorkflow(assignmentId, user) {
     ashaReason = "No ASHA worker assigned to this habitation/village.";
   }
 
+  // Query available ASHAs in catchment
+  const availableAshas = await Stakeholder.find({
+    projectId: project._id,
+    stakeholderType: "asha",
+    $or: [
+      { mandalId: family?.mandal || assignment.mandal?._id || assignment.mandal },
+      { villageId: family?.village || assignment.village?._id || assignment.village },
+    ],
+    status: "active",
+  }).select("fullName designation phone").sort({ fullName: 1 }).lean();
+
   const task2 = {
     taskKey: "asha",
     order: 2,
@@ -195,6 +206,12 @@ export async function getFamilyWorkflow(assignmentId, user) {
           phone: ashaStakeholder.phone,
         }
       : null,
+    availableStakeholders: availableAshas.map((s) => ({
+      id: s._id.toString(),
+      name: s.fullName,
+      designation: s.designation || "ASHA Facilitator",
+      phone: s.phone,
+    })),
     taskId: ashaTask ? ashaTask._id.toString() : null,
     taskCode: ashaTask?.taskCode || null,
     url: ashaTask ? `/field/survey/${ashaTask._id}?type=stakeholder` : null,
@@ -260,6 +277,17 @@ export async function getFamilyWorkflow(assignmentId, user) {
     staffReason = "No primary healthcare facility staff registered for this catchment.";
   }
 
+  // Query available facility staff in catchment
+  const availableStaff = await Stakeholder.find({
+    projectId: project._id,
+    stakeholderType: { $in: ["facility_staff", "doctor"] },
+    $or: [
+      { facilityId: assignment.facility?._id || assignment.facility || family?.facility },
+      { mandalId: family?.mandal || assignment.mandal?._id || assignment.mandal },
+    ],
+    status: "active",
+  }).select("fullName designation phone").sort({ fullName: 1 }).lean();
+
   const task3 = {
     taskKey: "facility_staff",
     order: 3,
@@ -279,6 +307,12 @@ export async function getFamilyWorkflow(assignmentId, user) {
           phone: facilityStaffStakeholder.phone,
         }
       : null,
+    availableStakeholders: availableStaff.map((s) => ({
+      id: s._id.toString(),
+      name: s.fullName,
+      designation: s.designation || "Facility Staff / Doctor",
+      phone: s.phone,
+    })),
     taskId: staffTask ? staffTask._id.toString() : null,
     taskCode: staffTask?.taskCode || null,
     url: staffTask ? `/field/survey/${staffTask._id}?type=stakeholder` : null,
@@ -335,6 +369,14 @@ export async function getFamilyWorkflow(assignmentId, user) {
     govtReason = "No government administrative assessment required for this round/habitation.";
   }
 
+  // Query available govt officials in mandal
+  const availableGovt = await Stakeholder.find({
+    projectId: project._id,
+    stakeholderType: "government_official",
+    mandalId: family?.mandal || assignment.mandal?._id || assignment.mandal,
+    status: "active",
+  }).select("fullName designation phone").sort({ fullName: 1 }).lean();
+
   const task4 = {
     taskKey: "govt_official",
     order: 4,
@@ -353,6 +395,12 @@ export async function getFamilyWorkflow(assignmentId, user) {
           phone: govtOfficialStakeholder.phone,
         }
       : null,
+    availableStakeholders: availableGovt.map((s) => ({
+      id: s._id.toString(),
+      name: s.fullName,
+      designation: s.designation || "Government Official",
+      phone: s.phone,
+    })),
     taskId: govtTask ? govtTask._id.toString() : null,
     taskCode: govtTask?.taskCode || null,
     url: govtTask ? `/field/survey/${govtTask._id}?type=stakeholder` : null,
@@ -470,8 +518,12 @@ export async function getFamilyWorkflow(assignmentId, user) {
       familyCode: family?.familyCode || "",
       householdHeadName: family?.householdHeadName || "",
       village: assignment.village?.name || "",
+      villageId: assignment.village?._id ? assignment.village._id.toString() : (assignment.village?.toString() || (family?.village ? family.village.toString() : "")),
       mandal: assignment.mandal?.name || "",
+      mandalId: assignment.mandal?._id ? assignment.mandal._id.toString() : (assignment.mandal?.toString() || (family?.mandal ? family.mandal.toString() : "")),
       facility: assignment.facility?.name || "",
+      facilityId: assignment.facility?._id ? assignment.facility._id.toString() : (assignment.facility?.toString() || (family?.facility ? family.facility.toString() : "")),
+      ashaId: family?.asha ? family.asha.toString() : null,
     },
     project: {
       id: project._id.toString(),
@@ -554,7 +606,7 @@ export async function markTaskNotRequired({ assignmentId, taskKey, reason, user 
  * Get or provision a shared StakeholderTask for a family's linked stakeholder.
  * Reuses existing stakeholder records and tasks across households.
  */
-export async function getOrCreateLinkedStakeholderTask({ assignmentId, taskKey, user }) {
+export async function getOrCreateLinkedStakeholderTask({ assignmentId, taskKey, stakeholderId = null, user }) {
   await connectToDatabase();
 
   const assignment = await verifyAssignmentAccess(assignmentId, user);
@@ -565,7 +617,18 @@ export async function getOrCreateLinkedStakeholderTask({ assignmentId, taskKey, 
   let stakeholderType = "";
   let stakeholder = null;
 
-  if (taskKey === "asha") {
+  if (stakeholderId) {
+    stakeholder = await Stakeholder.findById(stakeholderId);
+    if (!stakeholder) {
+      const err = new Error("Selected stakeholder not found.");
+      err.statusCode = 404;
+      throw err;
+    }
+    stakeholderType = stakeholder.stakeholderType;
+    if (taskKey === "asha" && family && family._id) {
+      await Family.updateOne({ _id: family._id }, { $set: { asha: stakeholder._id } });
+    }
+  } else if (taskKey === "asha") {
     stakeholderType = "asha";
     if (family?.asha) {
       stakeholder = await Stakeholder.findById(family.asha);
@@ -656,6 +719,18 @@ export async function getOrCreateLinkedStakeholderTask({ assignmentId, taskKey, 
     throw err;
   }
 
+  // Clear any existing not_required override on the assignment for this taskKey so the interview becomes active
+  if (assignment.taskOverrides && assignment.taskOverrides.length > 0) {
+    const prevLen = assignment.taskOverrides.length;
+    assignment.taskOverrides = assignment.taskOverrides.filter((o) => o.taskKey !== taskKey);
+    if (assignment.taskOverrides.length !== prevLen) {
+      await Assignment.updateOne(
+        { _id: assignment._id },
+        { $set: { taskOverrides: assignment.taskOverrides } }
+      );
+    }
+  }
+
   // Prevent duplicate interview tasks: reuse existing if already created!
   let task = await StakeholderTask.findOne({
     project: project._id,
@@ -672,6 +747,12 @@ export async function getOrCreateLinkedStakeholderTask({ assignmentId, taskKey, 
       status: task.status,
       reused: true,
       url: `/field/survey/${task._id}?type=stakeholder`,
+      stakeholder: {
+        id: stakeholder._id.toString(),
+        name: stakeholder.fullName,
+        designation: stakeholder.designation,
+        phone: stakeholder.phone,
+      },
     };
   }
 
@@ -713,6 +794,12 @@ export async function getOrCreateLinkedStakeholderTask({ assignmentId, taskKey, 
     status: task.status,
     created: true,
     url: `/field/survey/${task._id}?type=stakeholder`,
+    stakeholder: {
+      id: stakeholder._id.toString(),
+      name: stakeholder.fullName,
+      designation: stakeholder.designation,
+      phone: stakeholder.phone,
+    },
   };
 }
 

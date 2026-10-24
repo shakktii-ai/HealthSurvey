@@ -12,7 +12,7 @@ const StakeholderSchema = new mongoose.Schema(
       type: String,
       required: [true, "Stakeholder type is required"],
       enum: {
-        values: ["asha", "facility_staff", "government_official"],
+        values: ["asha", "facility_staff", "government_official", "doctor"],
         message: "{VALUE} is not a valid stakeholder type",
       },
       index: true,
@@ -32,6 +32,12 @@ const StakeholderSchema = new mongoose.Schema(
     facilityId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Facility",
+      default: null,
+      index: true,
+    },
+    villageId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Village",
       default: null,
       index: true,
     },
@@ -71,6 +77,8 @@ StakeholderSchema.methods.toSafeObject = function () {
     mandal: this.mandalId?.name ? { id: this.mandalId._id.toString(), name: this.mandalId.name, code: this.mandalId.code } : undefined,
     facilityId: this.facilityId?._id ? this.facilityId._id.toString() : this.facilityId?.toString() || null,
     facility: this.facilityId?.name ? { id: this.facilityId._id.toString(), name: this.facilityId.name, code: this.facilityId.code } : null,
+    villageId: this.villageId?._id ? this.villageId._id.toString() : this.villageId?.toString() || null,
+    village: this.villageId?.name ? { id: this.villageId._id.toString(), name: this.villageId.name } : null,
     phone: this.phone,
     designation: this.designation,
     status: this.status,

@@ -3,7 +3,7 @@ import { requireAuth } from "@/lib/auth";
 import { listStakeholders, createStakeholder } from "@/services/masterDataService";
 
 export async function GET(request) {
-  const auth = await requireAuth(["superadmin"]);
+  const auth = await requireAuth(["superadmin", "field_worker"]);
   if (!auth.authorized) {
     return NextResponse.json({ success: false, error: auth.error }, { status: auth.status });
   }
@@ -13,13 +13,14 @@ export async function GET(request) {
     const projectId = searchParams.get("projectId") || "";
     const mandalId = searchParams.get("mandalId") || "";
     const facilityId = searchParams.get("facilityId") || "";
+    const villageId = searchParams.get("villageId") || "";
     const stakeholderType = searchParams.get("stakeholderType") || "";
     const search = searchParams.get("search") || "";
     const status = searchParams.get("status") || "";
     const page = parseInt(searchParams.get("page") || "1", 10);
     const limit = parseInt(searchParams.get("limit") || "100", 10);
 
-    const result = await listStakeholders({ projectId, mandalId, facilityId, stakeholderType, search, status, page, limit });
+    const result = await listStakeholders({ projectId, mandalId, facilityId, villageId, stakeholderType, search, status, page, limit });
     return NextResponse.json({ success: true, ...result }, { status: 200 });
   } catch (error) {
     console.error("List stakeholders error:", error);
@@ -28,7 +29,7 @@ export async function GET(request) {
 }
 
 export async function POST(request) {
-  const auth = await requireAuth(["superadmin"]);
+  const auth = await requireAuth(["superadmin", "field_worker"]);
   if (!auth.authorized) {
     return NextResponse.json({ success: false, error: auth.error }, { status: auth.status });
   }
@@ -38,7 +39,10 @@ export async function POST(request) {
     const result = await createStakeholder(body, auth.user);
 
     if (!result.success) {
-      return NextResponse.json({ success: false, error: result.error }, { status: result.status });
+      return NextResponse.json(
+        { success: false, error: result.error, item: result.item || null },
+        { status: result.status || 400 }
+      );
     }
 
     return NextResponse.json({ success: true, message: "Stakeholder created successfully", item: result.item }, { status: 201 });

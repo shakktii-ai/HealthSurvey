@@ -20,7 +20,10 @@ import {
   CalendarIcon,
   ActivityIcon,
   FolderIcon,
+  PlusIcon,
+  UsersIcon,
 } from "@/components/common/Icons";
+import AddStakeholderModal from "@/components/common/AddStakeholderModal";
 
 const STATUS_VARIANTS = {
   completed: { variant: "success", label: "Completed" },
@@ -43,6 +46,10 @@ export default function FamilyWorkflowStepper({ assignmentId }) {
   const [submittingNotRequired, setSubmittingNotRequired] = useState(false);
   const [modalError, setModalError] = useState("");
   const [actionSuccess, setActionSuccess] = useState("");
+
+  // Modal State for "+ Add Stakeholder"
+  const [addStakeholderOpen, setAddStakeholderOpen] = useState(false);
+  const [targetTask, setTargetTask] = useState(null);
 
   const loadWorkflow = useCallback(async () => {
     try {
@@ -119,6 +126,11 @@ export default function FamilyWorkflowStepper({ assignmentId }) {
       return;
     }
 
+    if (task.taskKey !== "family" && task.taskKey !== "light_touch" && !task.stakeholder) {
+      openAddStakeholder(task);
+      return;
+    }
+
     // Provision or link task
     try {
       const res = await fetch(`/api/field/family-workflow/${assignmentId}/link-task`, {
@@ -137,6 +149,37 @@ export default function FamilyWorkflowStepper({ assignmentId }) {
       }
     } catch (err) {
       setError(err.message);
+    }
+  };
+
+  const handleLinkExistingStakeholder = async (taskKey, stakeholderId) => {
+    try {
+      const res = await fetch(`/api/field/family-workflow/${assignmentId}/link-task`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ taskKey, stakeholderId }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Failed to link stakeholder");
+      }
+      setActionSuccess("Stakeholder linked successfully to interview workflow.");
+      await loadWorkflow();
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  const openAddStakeholder = (task) => {
+    setTargetTask(task);
+    setAddStakeholderOpen(true);
+  };
+
+  const handleStakeholderCreated = async (newStakeholder) => {
+    if (targetTask && newStakeholder?.id) {
+      await handleLinkExistingStakeholder(targetTask.taskKey, newStakeholder.id);
+    } else {
+      await loadWorkflow();
     }
   };
 
@@ -367,10 +410,91 @@ export default function FamilyWorkflowStepper({ assignmentId }) {
                       </div>
                     )}
 
-                    {t.stakeholder && (
-                      <div className="text-xs text-slate-600">
-                        Stakeholder: <strong>{t.stakeholder.name}</strong> ({t.stakeholder.designation})
-                        {t.stakeholder.phone && <span className="ml-2 text-slate-400 font-mono">••••••</span>}
+                    {/* Stakeholder Details or Selection */}
+                    {t.taskKey !== "family" && t.taskKey !== "light_touch" && (
+                      <div className="pt-1.5">
+                        {t.stakeholder ? (
+                          <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs space-y-2">
+                            <div className="flex items-center justify-between flex-wrap gap-2">
+                              <div className="flex items-center gap-2">
+                                <div className="w-6 h-6 rounded-full bg-emerald-100 text-emerald-800 font-bold flex items-center justify-center text-[10px] shrink-0">
+                                  {t.stakeholder.name ? t.stakeholder.name.charAt(0) : "S"}
+                                </div>
+                                <div>
+                                  <span className="font-bold text-slate-800">{t.stakeholder.name}</span>
+                                  <span className="text-slate-500 ml-1.5">({t.stakeholder.designation})</span>
+                                  {t.stakeholder.phone && (
+                                    <span className="text-slate-400 ml-2 font-mono">••••••</span>
+                                  )}
+                                </div>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => openAddStakeholder(t)}
+                                className="text-[11px] font-bold text-emerald-600 hover:text-emerald-700 hover:underline inline-flex items-center gap-1"
+                              >
+                                <PlusIcon className="w-3 h-3 stroke-[2.5]" />
+                                <span>+ Add Stakeholder</span>
+                              </button>
+                            </div>
+
+                            {t.availableStakeholders && t.availableStakeholders.length > 1 && (
+                              <div className="flex items-center gap-2 pt-1.5 border-t border-slate-200/60">
+                                <span className="text-[11px] text-slate-500 shrink-0">Switch:</span>
+                                <select
+                                  value={t.stakeholder.id}
+                                  onChange={(e) => handleLinkExistingStakeholder(t.taskKey, e.target.value)}
+                                  className="w-full bg-white border border-slate-200 rounded px-2 py-1 text-[11px] text-slate-700 focus:outline-hidden focus:border-emerald-500"
+                                >
+                                  {t.availableStakeholders.map((s) => (
+                                    <option key={s.id} value={s.id}>
+                                      {s.name} ({s.designation})
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="p-3 bg-amber-50/80 border border-amber-200 rounded-lg text-xs space-y-2">
+                            <div className="flex items-center justify-between flex-wrap gap-2">
+                              <span className="font-semibold text-amber-900">
+                                No {t.title} assigned in this catchment
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => openAddStakeholder(t)}
+                                className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold text-xs shadow-xs inline-flex items-center gap-1 transition-colors"
+                              >
+                                <PlusIcon className="w-3.5 h-3.5 stroke-[2.5]" />
+                                <span>+ Add Stakeholder</span>
+                              </button>
+                            </div>
+                            {t.availableStakeholders && t.availableStakeholders.length > 0 ? (
+                              <div className="flex items-center gap-2 pt-1">
+                                <label className="text-slate-600 shrink-0 text-[11px]">Or select existing:</label>
+                                <select
+                                  defaultValue=""
+                                  onChange={(e) => {
+                                    if (e.target.value) handleLinkExistingStakeholder(t.taskKey, e.target.value);
+                                  }}
+                                  className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 focus:border-emerald-500 focus:outline-hidden"
+                                >
+                                  <option value="" disabled>Choose existing stakeholder...</option>
+                                  {t.availableStakeholders.map((s) => (
+                                    <option key={s.id} value={s.id}>
+                                      {s.name} ({s.designation})
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+                            ) : (
+                              <p className="text-[11px] text-amber-800">
+                                Click &ldquo;+ Add Stakeholder&rdquo; to register and link the stakeholder directly.
+                              </p>
+                            )}
+                          </div>
+                        )}
                       </div>
                     )}
 
@@ -457,14 +581,24 @@ export default function FamilyWorkflowStepper({ assignmentId }) {
                   )}
 
                   {isNotRequired && t.taskKey !== "family" && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="text-[11px] py-0.5 px-2 text-slate-500"
-                      onClick={() => openNotRequiredModal(t.taskKey, t.title)}
-                    >
-                      Edit Reason
-                    </Button>
+                    <div className="flex items-center gap-1.5">
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        className="text-xs py-1 px-2.5 bg-emerald-600 hover:bg-emerald-700 text-white"
+                        onClick={() => openAddStakeholder(t)}
+                      >
+                        + Add Stakeholder
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="text-[11px] py-0.5 px-2 text-slate-500"
+                        onClick={() => openNotRequiredModal(t.taskKey, t.title)}
+                      >
+                        Edit Reason
+                      </Button>
+                    </div>
                   )}
                 </div>
               </div>
@@ -527,6 +661,36 @@ export default function FamilyWorkflowStepper({ assignmentId }) {
           </div>
         </div>
       </Modal>
+
+      {/* Inline Add Stakeholder Modal */}
+      {targetTask && (
+        <AddStakeholderModal
+          isOpen={addStakeholderOpen}
+          onClose={() => {
+            setAddStakeholderOpen(false);
+            setTargetTask(null);
+          }}
+          defaultValues={{
+            projectId: workflow?.project?.id || workflow?.project?._id,
+            mandalId: workflow?.family?.mandalId,
+            facilityId: workflow?.family?.facilityId,
+            villageId: workflow?.family?.villageId,
+            familyId: workflow?.family?.id,
+            stakeholderType:
+              targetTask.category === "govt_official"
+                ? "government_official"
+                : targetTask.category || "asha",
+            designation:
+              targetTask.category === "asha"
+                ? "ASHA Worker"
+                : targetTask.category === "facility_staff"
+                ? "Medical Officer"
+                : "Government Official",
+          }}
+          lockGeography={true}
+          onStakeholderCreated={handleStakeholderCreated}
+        />
+      )}
     </div>
   );
 }

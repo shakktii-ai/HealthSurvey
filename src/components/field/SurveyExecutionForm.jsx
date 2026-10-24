@@ -23,7 +23,9 @@ import {
   FolderIcon,
   CameraIcon,
   UploadIcon,
+  PlusIcon,
 } from "@/components/common/Icons";
+import AddStakeholderModal from "@/components/common/AddStakeholderModal";
 import { shouldDisplayQuestion } from "@/utils/conditionEvaluator";
 
 const CATEGORY_TITLES = {
@@ -65,6 +67,12 @@ export default function SurveyExecutionForm({ taskId, taskType = "family", categ
   const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
   const [submittedReceipt, setSubmittedReceipt] = useState(null);
 
+  // Stakeholder Inline Management State
+  const [isAddStakeholderOpen, setIsAddStakeholderOpen] = useState(false);
+  const [availableStakeholders, setAvailableStakeholders] = useState([]);
+  const [linkingStakeholder, setLinkingStakeholder] = useState(false);
+  const [stakeholderNotice, setStakeholderNotice] = useState("");
+
   const consentId = useId();
   const consentNotesId = useId();
   const respondentNameId = useId();
@@ -90,6 +98,7 @@ export default function SurveyExecutionForm({ taskId, taskType = "family", categ
       setConsentGiven(!!data.consent?.consentGiven);
       setConsentNotes(data.consent?.notes || "");
       setLanguage(data.language || "en");
+      setAvailableStakeholders(data.availableStakeholders || []);
       if (data.response?.lastSavedAt) {
         setLastSavedTime(new Date(data.response.lastSavedAt).toLocaleTimeString());
       }
@@ -109,6 +118,94 @@ export default function SurveyExecutionForm({ taskId, taskType = "family", categ
     // eslint-disable-next-line react-hooks/set-state-in-effect
     loadSurveySession();
   }, [loadSurveySession]);
+
+  // Link or Switch Stakeholder directly on Survey page
+  const handleLinkStakeholder = async (selectedStakeholderId, createdStakeholderObj = null) => {
+    try {
+      setLinkingStakeholder(true);
+      setValidationError("");
+
+      const paramKey = taskType === "stakeholder" ? "stakeholderTaskId" : "assignmentId";
+      const payload = {
+        [paramKey]: taskId,
+        stakeholderId: selectedStakeholderId,
+      };
+
+      const res = await fetch("/api/field/survey-execution", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Failed to link stakeholder");
+      }
+
+      const activeStakeholder = data.stakeholder || createdStakeholderObj;
+
+      if (activeStakeholder) {
+        // Auto-update respondent name to newly selected stakeholder
+        setRespondentName(activeStakeholder.fullName);
+
+        // Update task.stakeholder state
+        setSessionData((prev) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            task: {
+              ...prev.task,
+              stakeholder: {
+                id: activeStakeholder.id || activeStakeholder._id,
+                fullName: activeStakeholder.fullName,
+                type: activeStakeholder.stakeholderType,
+                designation: activeStakeholder.designation,
+                phone: activeStakeholder.phone || "",
+              },
+              ...(taskType === "family" && prev.task.family
+                ? {
+                    family: {
+                      ...prev.task.family,
+                      asha: {
+                        id: activeStakeholder.id || activeStakeholder._id,
+                        fullName: activeStakeholder.fullName,
+                        designation: activeStakeholder.designation,
+                      },
+                    },
+                  }
+                : {}),
+            },
+          };
+        });
+
+        // Update available stakeholders list if not already present
+        setAvailableStakeholders((prev) => {
+          const exists = prev.some((s) => s.id === (activeStakeholder.id || activeStakeholder._id));
+          if (!exists) {
+            return [
+              ...prev,
+              {
+                id: activeStakeholder.id || activeStakeholder._id,
+                name: activeStakeholder.fullName,
+                designation: activeStakeholder.designation,
+                type: activeStakeholder.stakeholderType,
+                phone: activeStakeholder.phone || "",
+              },
+            ];
+          }
+          return prev;
+        });
+
+        setStakeholderNotice(`Linked ${activeStakeholder.fullName} (${activeStakeholder.designation})`);
+        setTimeout(() => setStakeholderNotice(""), 4000);
+      }
+    } catch (err) {
+      setValidationError(`Failed to link stakeholder: ${err.message}`);
+    } finally {
+      setLinkingStakeholder(false);
+      setIsAddStakeholderOpen(false);
+    }
+  };
 
   // Handle Answer Changes
   const handleAnswerChange = (questionCode, value) => {
@@ -458,11 +555,23 @@ export default function SurveyExecutionForm({ taskId, taskType = "family", categ
                   • Round: {sessionData.surveyRound?.code} ({sessionData.surveyRound?.name})
                 </span>
               </div>
-              <h2 className="text-lg font-bold tracking-tight">
-                {taskType === "family"
-                  ? `Household: ${sessionData.task?.family?.familyCode} — ${sessionData.task?.family?.householdHeadName || "Head"}`
-                  : `Stakeholder: ${sessionData.task?.stakeholder?.fullName} (${sessionData.task?.stakeholder?.designation || sessionData.task?.stakeholder?.type})`}
-              </h2>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h2 className="text-lg font-bold tracking-tight">
+                  {taskType === "family"
+                    ? `Household: ${sessionData.task?.family?.familyCode} — ${sessionData.task?.family?.householdHeadName || "Head"}`
+                    : `Stakeholder: ${sessionData.task?.stakeholder?.fullName || "Unassigned"} (${sessionData.task?.stakeholder?.designation || sessionData.task?.stakeholder?.type || "None"})`}
+                </h2>
+                {taskType === "stakeholder" && (
+                  <button
+                    type="button"
+                    onClick={() => setIsAddStakeholderOpen(true)}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-emerald-600/90 hover:bg-emerald-600 text-white text-[11px] font-semibold border border-emerald-400/30 transition-colors shadow-xs"
+                  >
+                    <PlusIcon className="w-3.5 h-3.5 stroke-[2.5]" />
+                    <span>+ Add Stakeholder</span>
+                  </button>
+                )}
+              </div>
               {taskType === "family" && sessionData.task?.family?.village && (
                 <p className="text-xs text-slate-300 flex items-center gap-1">
                   <MapPinIcon className="w-3.5 h-3.5 text-teal-400" />
@@ -531,6 +640,21 @@ export default function SurveyExecutionForm({ taskId, taskType = "family", categ
         </div>
       )}
 
+      {stakeholderNotice && (
+        <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-xs flex items-center justify-between shadow-xs">
+          <div className="flex items-center gap-2">
+            <CheckCircleIcon className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span>{stakeholderNotice}</span>
+          </div>
+          <button
+            onClick={() => setStakeholderNotice("")}
+            className="text-emerald-700 hover:text-emerald-900 font-bold ml-2"
+          >
+            ×
+          </button>
+        </div>
+      )}
+
       {draftSuccessMsg && (
         <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-xs flex items-center justify-between shadow-xs">
           <div className="flex items-center gap-2">
@@ -557,6 +681,162 @@ export default function SurveyExecutionForm({ taskId, taskType = "family", categ
         </CardHeader>
 
         <CardContent className="p-5 space-y-4 text-xs">
+          {/* Stakeholder Selection Panel (When executing stakeholder survey) */}
+          {taskType === "stakeholder" && (
+            <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2.5">
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <div className="flex items-center gap-2">
+                  <span className="font-semibold text-slate-800 text-xs">Interviewed Stakeholder:</span>
+                  <Badge variant="primary" size="sm">
+                    {sessionData.task?.stakeholder?.type || sessionData.category}
+                  </Badge>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsAddStakeholderOpen(true)}
+                  className="text-xs text-emerald-700 hover:text-emerald-800 border-emerald-300 bg-emerald-50/50 hover:bg-emerald-100/50 flex items-center gap-1 py-1 h-auto"
+                >
+                  <PlusIcon className="w-3.5 h-3.5" />
+                  <span>+ Add Stakeholder</span>
+                </Button>
+              </div>
+
+              {sessionData.task?.stakeholder ? (
+                <div className="flex items-center justify-between flex-wrap gap-3 pt-1 border-t border-slate-200/60">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-7 h-7 rounded-full bg-emerald-100 text-emerald-800 font-bold flex items-center justify-center text-xs shrink-0">
+                      {sessionData.task.stakeholder.fullName?.charAt(0) || "S"}
+                    </div>
+                    <div>
+                      <p className="font-bold text-slate-900 text-xs">
+                        {sessionData.task.stakeholder.fullName}
+                      </p>
+                      <p className="text-[11px] text-slate-500">
+                        {sessionData.task.stakeholder.designation || sessionData.task.stakeholder.type}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Dropdown to switch to another stakeholder in catchment */}
+                  {availableStakeholders.length > 0 && (
+                    <div className="flex items-center gap-1.5 text-xs">
+                      <span className="text-[11px] text-slate-500 shrink-0">Switch:</span>
+                      <select
+                        value={sessionData.task.stakeholder.id || ""}
+                        disabled={linkingStakeholder}
+                        onChange={(e) => handleLinkStakeholder(e.target.value)}
+                        className="bg-white border border-slate-200 rounded-lg px-2.5 py-1 text-xs text-slate-700 focus:outline-hidden focus:border-emerald-500"
+                      >
+                        {availableStakeholders.map((s) => (
+                          <option key={s.id} value={s.id}>
+                            {s.name} ({s.designation})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-lg text-amber-800 text-xs flex items-center justify-between gap-2">
+                  <span>⚠️ No stakeholder currently linked to this survey task.</span>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="primary"
+                    onClick={() => setIsAddStakeholderOpen(true)}
+                    className="text-xs shrink-0"
+                  >
+                    + Add Stakeholder Now
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Family Survey: Linked ASHA */}
+          {taskType === "family" && (
+            <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <div className="flex items-center gap-2">
+                  <span className="font-semibold text-slate-800 text-xs">Assigned ASHA for this Household:</span>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsAddStakeholderOpen(true)}
+                  className="text-xs text-emerald-700 hover:text-emerald-800 border-emerald-300 bg-emerald-50/50 hover:bg-emerald-100/50 flex items-center gap-1 py-1 h-auto"
+                >
+                  <PlusIcon className="w-3.5 h-3.5" />
+                  <span>+ Add Stakeholder</span>
+                </Button>
+              </div>
+
+              {sessionData.task?.family?.asha ? (
+                <div className="flex items-center justify-between flex-wrap gap-2 pt-1 border-t border-slate-200/60">
+                  <div className="flex items-center gap-2">
+                    <div className="w-6 h-6 rounded-full bg-teal-100 text-teal-800 font-bold flex items-center justify-center text-[10px] shrink-0">
+                      {sessionData.task.family.asha.fullName?.charAt(0) || "A"}
+                    </div>
+                    <div>
+                      <span className="font-bold text-slate-800 text-xs">
+                        {sessionData.task.family.asha.fullName}
+                      </span>
+                      <span className="text-slate-500 text-[11px] ml-1.5">
+                        ({sessionData.task.family.asha.designation || "ASHA Worker"})
+                      </span>
+                    </div>
+                  </div>
+
+                  {availableStakeholders.length > 0 && (
+                    <div className="flex items-center gap-1.5 text-xs">
+                      <span className="text-[11px] text-slate-500 shrink-0">Change ASHA:</span>
+                      <select
+                        value={sessionData.task.family.asha.id || ""}
+                        disabled={linkingStakeholder}
+                        onChange={(e) => handleLinkStakeholder(e.target.value)}
+                        className="bg-white border border-slate-200 rounded-lg px-2.5 py-1 text-xs text-slate-700 focus:outline-hidden focus:border-emerald-500"
+                      >
+                        <option value="">-- Select ASHA --</option>
+                        {availableStakeholders.map((s) => (
+                          <option key={s.id} value={s.id}>
+                            {s.name} ({s.designation})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="flex items-center justify-between flex-wrap gap-2 text-xs text-slate-500">
+                  <span>No ASHA worker currently assigned to this family.</span>
+                  {availableStakeholders.length > 0 && (
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[11px] text-slate-500">Assign:</span>
+                      <select
+                        defaultValue=""
+                        disabled={linkingStakeholder}
+                        onChange={(e) => {
+                          if (e.target.value) handleLinkStakeholder(e.target.value);
+                        }}
+                        className="bg-white border border-slate-200 rounded px-2 py-1 text-xs text-slate-700"
+                      >
+                        <option value="">-- Select Existing ASHA --</option>
+                        {availableStakeholders.map((s) => (
+                          <option key={s.id} value={s.id}>
+                            {s.name} ({s.designation})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label htmlFor={respondentNameId} className="block font-medium text-slate-700 mb-1">
@@ -939,6 +1219,27 @@ export default function SurveyExecutionForm({ taskId, taskType = "family", categ
           </div>
         </div>
       </Modal>
+
+      {/* INLINE ADD STAKEHOLDER MODAL */}
+      <AddStakeholderModal
+        isOpen={isAddStakeholderOpen}
+        onClose={() => setIsAddStakeholderOpen(false)}
+        onStakeholderCreated={(newStakeholder) => {
+          handleLinkStakeholder(newStakeholder.id, newStakeholder);
+        }}
+        initialProjectId={sessionData.project?.id || ""}
+        initialMandalId={sessionData.task?.mandalId || ""}
+        initialFacilityId={sessionData.task?.facilityId || ""}
+        initialVillageId={sessionData.task?.villageId || ""}
+        initialStakeholderType={
+          sessionData.category === "govt_official"
+            ? "government_official"
+            : sessionData.category === "facility_staff"
+            ? "facility_staff"
+            : "asha"
+        }
+        lockGeography={!!(sessionData.project?.id && sessionData.task?.mandalId)}
+      />
     </div>
   );
 }

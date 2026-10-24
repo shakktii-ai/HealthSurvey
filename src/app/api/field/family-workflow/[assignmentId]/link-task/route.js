@@ -22,7 +22,7 @@ export async function POST(req, { params }) {
 
     const { assignmentId } = await params;
     const body = await req.json();
-    const { taskKey } = body || {};
+    const { taskKey, stakeholderId } = body || {};
 
     if (!taskKey) {
       return NextResponse.json(
@@ -34,6 +34,7 @@ export async function POST(req, { params }) {
     const result = await getOrCreateLinkedStakeholderTask({
       assignmentId,
       taskKey,
+      stakeholderId,
       user: auth.user,
     });
 

@@ -591,18 +591,25 @@ export async function toggleVillageStatus(id, status, actor) {
    STAKEHOLDER SERVICE
    ========================================================================= */
 
-export async function listStakeholders({ projectId = "", mandalId = "", facilityId = "", stakeholderType = "", search = "", status = "", page = 1, limit = 50 } = {}) {
+export async function listStakeholders({ projectId = "", mandalId = "", facilityId = "", villageId = "", stakeholderType = "", search = "", status = "", page = 1, limit = 50 } = {}) {
   await connectToDatabase();
   const query = {};
 
   if (projectId) query.projectId = projectId;
   if (mandalId) query.mandalId = mandalId;
   if (facilityId) query.facilityId = facilityId;
-  if (stakeholderType) query.stakeholderType = stakeholderType;
+  if (villageId) query.villageId = villageId;
+  if (stakeholderType) {
+    if (stakeholderType === "doctor") {
+      query.stakeholderType = { $in: ["doctor", "facility_staff"] };
+    } else {
+      query.stakeholderType = stakeholderType;
+    }
+  }
   if (status) query.status = status;
   if (search) {
     const regex = new RegExp(search.trim(), "i");
-    query.$or = [{ fullName: regex }, { designation: regex }];
+    query.$or = [{ fullName: regex }, { designation: regex }, { phone: regex }];
   }
 
   const skip = (Math.max(1, page) - 1) * limit;
@@ -614,7 +621,8 @@ export async function listStakeholders({ projectId = "", mandalId = "", facility
       .limit(limit)
       .populate("projectId", "name code")
       .populate("mandalId", "name code")
-      .populate("facilityId", "name code facilityType"),
+      .populate("facilityId", "name code facilityType")
+      .populate("villageId", "name code"),
   ]);
 
   return {
@@ -630,18 +638,27 @@ export async function getStakeholderById(id) {
   const stakeholder = await Stakeholder.findById(id)
     .populate("projectId", "name code")
     .populate("mandalId", "name code")
-    .populate("facilityId", "name code facilityType");
+    .populate("facilityId", "name code facilityType")
+    .populate("villageId", "name code");
   return stakeholder ? stakeholder.toSafeObject() : null;
 }
 
-export async function createStakeholder({ fullName, stakeholderType, projectId, mandalId, facilityId = null, phone = "", designation = "" }, actor) {
+export async function createStakeholder({ fullName, stakeholderType, projectId, mandalId, facilityId = null, villageId = null, phone = "", designation = "" }, actor) {
   if (!fullName || !stakeholderType || !projectId || !mandalId) {
     return { success: false, error: "Full name, stakeholder type, project, and mandal are required", status: 400 };
   }
 
-  const validTypes = ["asha", "facility_staff", "government_official"];
+  const validTypes = ["asha", "facility_staff", "government_official", "doctor"];
   if (!validTypes.includes(stakeholderType)) {
     return { success: false, error: `Invalid stakeholder type. Must be one of: ${validTypes.join(", ")}`, status: 400 };
+  }
+
+  // Normalize doctor to facility_staff with Doctor designation if needed
+  let normalizedType = stakeholderType;
+  let normalizedDesignation = designation ? designation.trim() : "";
+  if (stakeholderType === "doctor") {
+    normalizedType = "facility_staff";
+    if (!normalizedDesignation) normalizedDesignation = "Doctor / Medical Officer";
   }
 
   await connectToDatabase();
@@ -671,14 +688,57 @@ export async function createStakeholder({ fullName, stakeholderType, projectId, 
     }
   }
 
+  if (villageId) {
+    const village = await Village.findById(villageId);
+    if (!village || village.status !== "active") {
+      return { success: false, error: "Associated village is invalid or inactive", status: 400 };
+    }
+    if (village.mandalId.toString() !== mandalId) {
+      return { success: false, error: "Selected village does not belong to the selected mandal", status: 400 };
+    }
+  }
+
+  // Duplicate prevention: check if a stakeholder with same name or phone exists in the mandal
+  const escapedName = fullName.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const duplicateQuery = {
+    projectId,
+    mandalId,
+    stakeholderType: normalizedType,
+  };
+
+  if (phone && phone.trim()) {
+    duplicateQuery.$or = [
+      { fullName: new RegExp(`^${escapedName}$`, "i") },
+      { phone: phone.trim() },
+    ];
+  } else {
+    duplicateQuery.fullName = new RegExp(`^${escapedName}$`, "i");
+  }
+
+  const existingStakeholder = await Stakeholder.findOne(duplicateQuery)
+    .populate("projectId", "name code")
+    .populate("mandalId", "name code")
+    .populate("facilityId", "name code facilityType")
+    .populate("villageId", "name code");
+
+  if (existingStakeholder) {
+    return {
+      success: false,
+      error: `Stakeholder "${existingStakeholder.fullName}" already exists in this catchment.`,
+      status: 409,
+      item: existingStakeholder.toSafeObject(),
+    };
+  }
+
   const stakeholder = await Stakeholder.create({
     fullName: fullName.trim(),
-    stakeholderType,
+    stakeholderType: normalizedType,
     projectId,
     mandalId,
     facilityId: facilityId || null,
+    villageId: villageId || null,
     phone: phone ? phone.trim() : "",
-    designation: designation ? designation.trim() : "",
+    designation: normalizedDesignation,
     status: "active",
   });
 

@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth";
-import { getExecutionSurveyData } from "@/services/surveyExecutionService";
+import {
+  getExecutionSurveyData,
+  updateSurveyStakeholder,
+} from "@/services/surveyExecutionService";
 
 export const dynamic = "force-dynamic";
 
@@ -44,3 +47,49 @@ export async function GET(request) {
     );
   }
 }
+
+export async function PATCH(request) {
+  const auth = await requireAuth(["field_worker", "superadmin"]);
+  if (!auth.authorized) {
+    return NextResponse.json(
+      { success: false, error: auth.error },
+      { status: auth.status }
+    );
+  }
+
+  try {
+    const body = await request.json().catch(() => ({}));
+    const { assignmentId, stakeholderTaskId, stakeholderId } = body;
+
+    if (!stakeholderId) {
+      return NextResponse.json(
+        { success: false, error: "stakeholderId parameter is required." },
+        { status: 400 }
+      );
+    }
+
+    if (!assignmentId && !stakeholderTaskId) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Either assignmentId or stakeholderTaskId parameter is required.",
+        },
+        { status: 400 }
+      );
+    }
+
+    const result = await updateSurveyStakeholder(
+      { assignmentId, stakeholderTaskId, stakeholderId },
+      auth.user
+    );
+
+    return NextResponse.json(result, { status: 200 });
+  } catch (error) {
+    console.error("Update survey stakeholder error:", error);
+    return NextResponse.json(
+      { success: false, error: error.message || "Failed to update survey stakeholder" },
+      { status: error.statusCode || 500 }
+    );
+  }
+}
+

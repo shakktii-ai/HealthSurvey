@@ -15,6 +15,7 @@ import {
   EyeIcon,
   CloseIcon,
 } from "@/components/common/Icons";
+import AddStakeholderModal from "@/components/common/AddStakeholderModal";
 
 const CHARACTERISTICS_LABELS = {
   tribal: "Tribal",
@@ -73,6 +74,7 @@ export default function FamilyManager() {
 
   // Add / Edit Form State
   const [isFormOpen, setIsFormOpen] = useState(false);
+  const [isAddStakeholderOpen, setIsAddStakeholderOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [activeSection, setActiveSection] = useState("section-location");
@@ -1256,9 +1258,20 @@ export default function FamilyManager() {
                     </div>
 
                     <div>
-                      <label className="block text-xs font-semibold text-slate-700 mb-1">
-                        5. Assigned ASHA Worker
-                      </label>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="block text-xs font-semibold text-slate-700">
+                          5. Assigned ASHA Worker
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => setIsAddStakeholderOpen(true)}
+                          disabled={!mandalId}
+                          className="text-xs font-bold text-emerald-600 hover:text-emerald-700 hover:underline inline-flex items-center gap-1 disabled:opacity-40"
+                        >
+                          <PlusIcon className="w-3.5 h-3.5 stroke-[2.5]" />
+                          <span>+ Add Stakeholder</span>
+                        </button>
+                      </div>
                       <select
                         value={ashaId}
                         onChange={(e) => setAshaId(e.target.value)}
@@ -1268,7 +1281,7 @@ export default function FamilyManager() {
                         <option value="">None / Not Assigned</option>
                         {formAshas.map((a) => (
                           <option key={a.id} value={a.id}>
-                            {a.fullName}
+                            {a.fullName} {a.phone ? `(${a.phone})` : ""}
                           </option>
                         ))}
                       </select>
@@ -1820,6 +1833,30 @@ export default function FamilyManager() {
           </div>
         </div>
       )}
+
+      {/* Inline Add Stakeholder Modal */}
+      <AddStakeholderModal
+        isOpen={isAddStakeholderOpen}
+        onClose={() => setIsAddStakeholderOpen(false)}
+        defaultValues={{
+          projectId,
+          mandalId,
+          facilityId,
+          villageId,
+          stakeholderType: "asha",
+          designation: "ASHA Worker",
+        }}
+        lockGeography={true}
+        onStakeholderCreated={(newStakeholder) => {
+          setAllAshas((prev) => {
+            const exists = prev.some((item) => item.id === newStakeholder.id);
+            if (exists) return prev;
+            return [...prev, newStakeholder];
+          });
+          setAshaId(newStakeholder.id);
+          setActionMessage(`Stakeholder "${newStakeholder.fullName}" created and selected.`);
+        }}
+      />
     </div>
   );
 }
