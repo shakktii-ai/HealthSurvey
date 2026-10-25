@@ -798,8 +798,23 @@ export default function SurveyExecutionForm({ taskId, taskType = "family", categ
                       <span className="text-slate-500 text-[11px] ml-1.5">
                         ({sessionData.task.family.asha.designation || "ASHA Worker"})
                       </span>
+                      {sessionData.task.family.ashas?.length > 1 && (
+                        <span className="text-[10px] text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded ml-2 font-medium">
+                          +{sessionData.task.family.ashas.length - 1} more ASHA
+                        </span>
+                      )}
                     </div>
                   </div>
+
+                  {sessionData.task.family.doctor && (
+                    <div className="flex items-center gap-1.5 text-xs text-blue-700 bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-100">
+                      <span className="font-bold">Doctor:</span>
+                      <span>Dr. {sessionData.task.family.doctor.fullName}</span>
+                      {sessionData.task.family.doctor.phone && (
+                        <span className="text-slate-500 font-mono text-[11px]">({sessionData.task.family.doctor.phone})</span>
+                      )}
+                    </div>
+                  )}
 
                   {availableStakeholders.length > 0 && (
                     <div className="flex items-center gap-1.5 text-xs">

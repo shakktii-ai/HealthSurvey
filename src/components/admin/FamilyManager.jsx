@@ -45,6 +45,7 @@ export default function FamilyManager() {
   const [allFacilities, setAllFacilities] = useState([]);
   const [allVillages, setAllVillages] = useState([]);
   const [allAshas, setAllAshas] = useState([]);
+  const [allDoctors, setAllDoctors] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
 
   // Filters
@@ -118,6 +119,11 @@ export default function FamilyManager() {
   const [facilityId, setFacilityId] = useState("");
   const [villageId, setVillageId] = useState("");
   const [ashaId, setAshaId] = useState("");
+  const [ashaIds, setAshaIds] = useState([""]);
+  const [doctorId, setDoctorId] = useState("");
+  const [stakeholderModalType, setStakeholderModalType] = useState("asha");
+  const [familyDoctorInterviews, setFamilyDoctorInterviews] = useState([]);
+  const [loadingInterviews, setLoadingInterviews] = useState(false);
   const [householdHeadName, setHouseholdHeadName] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
   const [phoneOwner, setPhoneOwner] = useState("own");
@@ -152,20 +158,22 @@ export default function FamilyManager() {
 
   async function fetchMetadata() {
     try {
-      const [projRes, manRes, facRes, vilRes, ashaRes] = await Promise.all([
+      const [projRes, manRes, facRes, vilRes, ashaRes, docRes] = await Promise.all([
         fetch("/api/admin/projects?status=active&limit=100"),
         fetch("/api/admin/mandals?status=active&limit=200"),
         fetch("/api/admin/facilities?status=active&limit=300"),
         fetch("/api/admin/villages?status=active&limit=500"),
         fetch("/api/admin/stakeholders?stakeholderType=asha&status=active&limit=300"),
+        fetch("/api/admin/stakeholders?stakeholderType=doctor&status=active&limit=300"),
       ]);
 
-      const [projData, manData, facData, vilData, ashaData] = await Promise.all([
+      const [projData, manData, facData, vilData, ashaData, docData] = await Promise.all([
         projRes.json(),
         manRes.json(),
         facRes.json(),
         vilRes.json(),
         ashaRes.json(),
+        docRes.json(),
       ]);
 
       if (projRes.ok && projData.success) setProjects(projData.items || []);
@@ -173,6 +181,7 @@ export default function FamilyManager() {
       if (facRes.ok && facData.success) setAllFacilities(facData.items || []);
       if (vilRes.ok && vilData.success) setAllVillages(vilData.items || []);
       if (ashaRes.ok && ashaData.success) setAllAshas(ashaData.items || []);
+      if (docRes.ok && docData.success) setAllDoctors(docData.items || []);
     } catch {
       // Ignored
     }
@@ -231,6 +240,42 @@ export default function FamilyManager() {
     return matchesProj && matchesMandal;
   });
 
+  const formDoctors = allDoctors.filter((d) => {
+    const matchesProj = !projectId || d.projectId === projectId || d.project?.id === projectId;
+    const matchesFac = !facilityId || d.facilityId === facilityId || d.facility?.id === facilityId;
+    const matchesMandal = !mandalId || d.mandalId === mandalId || d.mandal?.id === mandalId;
+    return matchesProj && (matchesFac || matchesMandal);
+  });
+
+  function handleAddAshaSlot() {
+    setAshaIds((prev) => [...prev, ""]);
+  }
+
+  function handleRemoveAshaSlot(index) {
+    setAshaIds((prev) => {
+      const updated = prev.filter((_, i) => i !== index);
+      return updated.length === 0 ? [""] : updated;
+    });
+  }
+
+  function handleAshaChange(index, value) {
+    setAshaIds((prev) => {
+      const updated = [...prev];
+      updated[index] = value;
+      return updated;
+    });
+  }
+
+  function openAddAshaModal() {
+    setStakeholderModalType("asha");
+    setIsAddStakeholderOpen(true);
+  }
+
+  function openAddDoctorModal() {
+    setStakeholderModalType("doctor");
+    setIsAddStakeholderOpen(true);
+  }
+
   function handleFormProjectChange(newProjId) {
     setProjectId(newProjId);
     const validMandals = allMandals.filter(
@@ -255,6 +300,8 @@ export default function FamilyManager() {
     );
     setVillageId(validVillages.length > 0 ? validVillages[0].id : "");
     setAshaId("");
+    setAshaIds([""]);
+    setDoctorId("");
   }
 
   function handleFormMandalChange(newMandalId) {
@@ -275,6 +322,8 @@ export default function FamilyManager() {
     );
     setVillageId(validVillages.length > 0 ? validVillages[0].id : "");
     setAshaId("");
+    setAshaIds([""]);
+    setDoctorId("");
   }
 
   function handleFormFacilityChange(newFacilityId) {
@@ -348,6 +397,8 @@ export default function FamilyManager() {
     );
     setVillageId(validVillages.length > 0 ? validVillages[0].id : "");
     setAshaId("");
+    setAshaIds([""]);
+    setDoctorId("");
 
     setHouseholdHeadName("");
     setPhoneNumber("");
@@ -376,7 +427,14 @@ export default function FamilyManager() {
     setMandalId(family.mandalId || family.mandal?.id || "");
     setFacilityId(family.facilityId || family.facility?.id || "");
     setVillageId(family.villageId || family.village?.id || "");
-    setAshaId(family.ashaId || family.asha?.id || "");
+    const existingAshaIds = Array.isArray(family.ashaIds) && family.ashaIds.length > 0
+      ? family.ashaIds
+      : family.ashas?.length > 0
+      ? family.ashas.map((a) => a.id || a._id)
+      : (family.ashaId || family.asha?.id ? [family.ashaId || family.asha.id] : [""]);
+    setAshaIds(existingAshaIds.length > 0 ? existingAshaIds : [""]);
+    setAshaId(existingAshaIds[0] || "");
+    setDoctorId(family.doctorId || family.doctor?.id || "");
 
     setHouseholdHeadName(family.householdHeadName || "");
     setPhoneNumber(family.phoneNumber || "");
@@ -415,12 +473,15 @@ export default function FamilyManager() {
     setActionMessage("");
 
     try {
+      const resolvedAshas = [...new Set(ashaIds.filter(Boolean))];
       const payload = {
         projectId,
         mandalId,
         facilityId,
         villageId,
-        ashaId: ashaId || null,
+        ashaId: resolvedAshas[0] || null,
+        ashaIds: resolvedAshas,
+        doctorId: doctorId || null,
         householdHeadName: householdHeadName.trim(),
         phoneNumber: phoneNumber.trim(),
         phoneOwner,
@@ -518,6 +579,25 @@ export default function FamilyManager() {
       setError(err.message);
     }
   }
+
+  const openFamilyDetails = async (fam) => {
+    setViewingFamily(fam);
+    setFamilyDoctorInterviews([]);
+    if (fam?.id) {
+      setLoadingInterviews(true);
+      try {
+        const res = await fetch(`/api/admin/families/${fam.id}/doctor-interviews`);
+        if (res.ok) {
+          const data = await res.json();
+          setFamilyDoctorInterviews(data.data || []);
+        }
+      } catch (e) {
+        console.error("Failed to load doctor interviews for family", e);
+      } finally {
+        setLoadingInterviews(false);
+      }
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -784,7 +864,7 @@ export default function FamilyManager() {
                         </button>
                       </div>
 
-                      {/* Catchment & Facility */}
+                      {/* Catchment & Facility / Stakeholders */}
                       <div className="grid grid-cols-2 gap-2 text-xs bg-slate-50 p-2.5 rounded-xl border border-slate-100">
                         <div>
                           <span className="text-[10px] text-slate-400 block font-medium">Catchment</span>
@@ -796,12 +876,21 @@ export default function FamilyManager() {
                           </span>
                         </div>
                         <div>
-                          <span className="text-[10px] text-slate-400 block font-medium">Facility / ASHA</span>
+                          <span className="text-[10px] text-slate-400 block font-medium">Facility / Doctor / ASHA</span>
                           <span className="font-semibold text-slate-800 truncate block">
                             {fam.facility?.name || "Facility N/A"}
                           </span>
+                          {fam.doctor?.fullName && (
+                            <span className="text-[10px] text-blue-700 block truncate font-medium">
+                              Dr. {fam.doctor.fullName}
+                            </span>
+                          )}
                           <span className="text-[10px] text-slate-500 block truncate">
-                            {fam.asha?.fullName ? `ASHA: ${fam.asha.fullName}` : "No ASHA"}
+                            {fam.ashas?.length > 0
+                              ? `ASHA: ${fam.ashas.map((a) => a.fullName).join(", ")}`
+                              : fam.asha?.fullName
+                              ? `ASHA: ${fam.asha.fullName}`
+                              : "No ASHA"}
                           </span>
                         </div>
                       </div>
@@ -857,7 +946,7 @@ export default function FamilyManager() {
                       <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
                         <button
                           type="button"
-                          onClick={() => setViewingFamily(fam)}
+                          onClick={() => openFamilyDetails(fam)}
                           className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-semibold text-xs min-h-[34px]"
                         >
                           View
@@ -940,8 +1029,17 @@ export default function FamilyManager() {
                             <div className="font-medium text-slate-800">
                               {fam.facility?.name || "Facility N/A"}
                             </div>
+                            {fam.doctor?.fullName && (
+                              <div className="text-[11px] text-blue-700 font-medium">
+                                Dr. {fam.doctor.fullName}
+                              </div>
+                            )}
                             <div className="text-[11px] text-slate-500">
-                              ASHA: {fam.asha?.fullName || "None assigned"}
+                              {fam.ashas?.length > 0
+                                ? `ASHA: ${fam.ashas.map((a) => a.fullName).join(", ")}`
+                                : fam.asha?.fullName
+                                ? `ASHA: ${fam.asha.fullName}`
+                                : "No ASHA assigned"}
                             </div>
                           </td>
                           <td className="px-6 py-3.5">
@@ -1008,7 +1106,7 @@ export default function FamilyManager() {
                           <td className="px-6 py-3.5 text-right space-x-2">
                             <button
                               type="button"
-                              onClick={() => setViewingFamily(fam)}
+                              onClick={() => openFamilyDetails(fam)}
                               className="text-slate-600 hover:text-slate-900 font-medium text-xs transition-colors"
                             >
                               View
@@ -1257,34 +1355,106 @@ export default function FamilyManager() {
                       </select>
                     </div>
 
+                    {/* Doctor Selector */}
                     <div>
                       <div className="flex items-center justify-between mb-1">
                         <label className="block text-xs font-semibold text-slate-700">
-                          5. Assigned ASHA Worker
+                          5. Assigned Medical Officer / Doctor
                         </label>
                         <button
                           type="button"
-                          onClick={() => setIsAddStakeholderOpen(true)}
+                          onClick={openAddDoctorModal}
                           disabled={!mandalId}
-                          className="text-xs font-bold text-emerald-600 hover:text-emerald-700 hover:underline inline-flex items-center gap-1 disabled:opacity-40"
+                          className="text-xs font-bold text-blue-600 hover:text-blue-700 hover:underline inline-flex items-center gap-1 disabled:opacity-40"
                         >
                           <PlusIcon className="w-3.5 h-3.5 stroke-[2.5]" />
-                          <span>+ Add Stakeholder</span>
+                          <span>+ Add Doctor</span>
                         </button>
                       </div>
                       <select
-                        value={ashaId}
-                        onChange={(e) => setAshaId(e.target.value)}
+                        value={doctorId}
+                        onChange={(e) => setDoctorId(e.target.value)}
                         disabled={!mandalId}
-                        className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 sm:py-2 text-base sm:text-sm text-slate-900 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 disabled:bg-slate-100 disabled:text-slate-400 min-h-[44px] sm:min-h-[38px] transition-all"
+                        className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 sm:py-2 text-base sm:text-sm text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 disabled:bg-slate-100 disabled:text-slate-400 min-h-[44px] sm:min-h-[38px] transition-all"
                       >
                         <option value="">None / Not Assigned</option>
-                        {formAshas.map((a) => (
-                          <option key={a.id} value={a.id}>
-                            {a.fullName} {a.phone ? `(${a.phone})` : ""}
+                        {formDoctors.map((d) => (
+                          <option key={d.id} value={d.id}>
+                            Dr. {d.fullName} {d.designation ? `(${d.designation})` : ""}
                           </option>
                         ))}
                       </select>
+                    </div>
+
+                    {/* Multiple ASHA Workers */}
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-700">
+                            6. Assigned ASHA Worker(s)
+                          </label>
+                          <span className="text-[10px] text-slate-400">
+                            Add one or multiple ASHA workers for this village catchment
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={openAddAshaModal}
+                            disabled={!mandalId}
+                            className="text-xs font-bold text-emerald-600 hover:text-emerald-700 hover:underline inline-flex items-center gap-1 disabled:opacity-40"
+                          >
+                            <PlusIcon className="w-3.5 h-3.5 stroke-[2.5]" />
+                            <span>+ New ASHA</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleAddAshaSlot}
+                            disabled={!mandalId || formAshas.length === 0}
+                            className="text-xs font-bold text-indigo-600 hover:text-indigo-700 hover:underline inline-flex items-center gap-1 disabled:opacity-40"
+                          >
+                            <PlusIcon className="w-3.5 h-3.5 stroke-[2.5]" />
+                            <span>+ Add Slot</span>
+                          </button>
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        {ashaIds.map((curAshaId, idx) => (
+                          <div key={idx} className="flex items-center gap-2">
+                            <select
+                              value={curAshaId}
+                              onChange={(e) => handleAshaChange(idx, e.target.value)}
+                              disabled={!mandalId}
+                              className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 sm:py-2 text-base sm:text-sm text-slate-900 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 disabled:bg-slate-100 disabled:text-slate-400 min-h-[44px] sm:min-h-[38px] transition-all"
+                            >
+                              <option value="">
+                                {formAshas.length === 0
+                                  ? "No ASHAs in Catchment"
+                                  : `Select ASHA Worker ${ashaIds.length > 1 ? `#${idx + 1}` : ""}`}
+                              </option>
+                              {formAshas.map((a) => (
+                                <option
+                                  key={a.id}
+                                  value={a.id}
+                                  disabled={ashaIds.includes(a.id) && a.id !== curAshaId}
+                                >
+                                  {a.fullName} {a.phone ? `(${a.phone})` : ""}
+                                </option>
+                              ))}
+                            </select>
+                            {ashaIds.length > 1 && (
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveAshaSlot(idx)}
+                                className="px-2.5 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 rounded-lg border border-rose-200 shrink-0 min-h-[38px]"
+                                title="Remove this ASHA slot"
+                              >
+                                Remove
+                              </button>
+                            )}
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -1742,9 +1912,36 @@ export default function FamilyManager() {
                     </span>
                   </div>
                   <div>
-                    <span className="text-slate-400 block text-[10px]">Assigned ASHA</span>
+                    <span className="text-slate-400 block text-[10px]">Assigned ASHA Worker(s)</span>
+                    <div className="text-slate-800 font-medium">
+                      {viewingFamily.ashas && viewingFamily.ashas.length > 0 ? (
+                        <div className="space-y-1 mt-0.5">
+                          {viewingFamily.ashas.map((a, i) => (
+                            <div key={i} className="flex items-center gap-1.5">
+                              <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                              <span>{a.fullName}</span>
+                              {a.phone && <span className="text-slate-400 font-mono text-[11px]">({a.phone})</span>}
+                            </div>
+                          ))}
+                        </div>
+                      ) : viewingFamily.asha?.fullName ? (
+                        <span>{viewingFamily.asha.fullName}</span>
+                      ) : (
+                        <span className="text-slate-400 italic">None assigned</span>
+                      )}
+                    </div>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block text-[10px]">Assigned Doctor / Medical Officer</span>
                     <span className="text-slate-800 font-medium">
-                      {viewingFamily.asha?.fullName || "None assigned"}
+                      {viewingFamily.doctor?.fullName ? (
+                        <span className="text-blue-700 font-semibold">
+                          Dr. {viewingFamily.doctor.fullName}
+                          {viewingFamily.doctor.designation ? ` (${viewingFamily.doctor.designation})` : ""}
+                        </span>
+                      ) : (
+                        <span className="text-slate-400 italic">None assigned</span>
+                      )}
                     </span>
                   </div>
                   <div>
@@ -1823,6 +2020,46 @@ export default function FamilyManager() {
                   </div>
                 )}
               </div>
+              {/* Linked Doctor Interviews */}
+              <div className="pt-3 border-t border-slate-100">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                    <span>🩺 Linked Doctor Interviews</span>
+                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-800 font-mono font-semibold">
+                      {familyDoctorInterviews.length}
+                    </span>
+                  </span>
+                </div>
+                {loadingInterviews ? (
+                  <div className="py-3 text-center text-xs text-slate-400 italic">
+                    Loading linked doctor interviews...
+                  </div>
+                ) : familyDoctorInterviews.length === 0 ? (
+                  <div className="rounded-lg border border-dashed border-slate-200 p-3 text-center text-xs text-slate-400">
+                    No doctor interviews linked to this family yet.
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {familyDoctorInterviews.map((iv) => (
+                      <div key={iv.id} className="p-2.5 rounded-xl border border-blue-100 bg-blue-50/40 text-xs">
+                        <div className="flex items-center justify-between">
+                          <span className="font-mono font-bold text-blue-900">{iv.interviewCode}</span>
+                          <span className="text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded bg-white text-slate-600 border border-slate-200">
+                            {iv.status}
+                          </span>
+                        </div>
+                        <div className="mt-1 text-slate-700 font-medium">
+                          Doctor: {iv.doctor?.fullName ? `Dr. ${iv.doctor.fullName}` : "Doctor"}
+                        </div>
+                        <div className="text-[11px] text-slate-500">
+                          Date: {iv.interviewDate ? new Date(iv.interviewDate).toLocaleDateString() : "N/A"}
+                          {iv.facility?.name ? ` • Facility: ${iv.facility.name}` : ""}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
 
             <div className="sticky bottom-0 z-20 border-t border-slate-100 bg-white/95 backdrop-blur-sm p-3 sm:p-4 flex justify-end shrink-0">
@@ -1843,18 +2080,32 @@ export default function FamilyManager() {
           mandalId,
           facilityId,
           villageId,
-          stakeholderType: "asha",
-          designation: "ASHA Worker",
+          stakeholderType: stakeholderModalType,
+          designation: stakeholderModalType === "doctor" ? "Medical Officer" : "ASHA Worker",
         }}
         lockGeography={true}
         onStakeholderCreated={(newStakeholder) => {
-          setAllAshas((prev) => {
-            const exists = prev.some((item) => item.id === newStakeholder.id);
-            if (exists) return prev;
-            return [...prev, newStakeholder];
-          });
-          setAshaId(newStakeholder.id);
-          setActionMessage(`Stakeholder "${newStakeholder.fullName}" created and selected.`);
+          if (stakeholderModalType === "doctor") {
+            setAllDoctors((prev) => {
+              const exists = prev.some((item) => item.id === newStakeholder.id);
+              if (exists) return prev;
+              return [...prev, newStakeholder];
+            });
+            setDoctorId(newStakeholder.id);
+            setActionMessage(`Doctor "${newStakeholder.fullName}" created and selected.`);
+          } else {
+            setAllAshas((prev) => {
+              const exists = prev.some((item) => item.id === newStakeholder.id);
+              if (exists) return prev;
+              return [...prev, newStakeholder];
+            });
+            setAshaIds((prev) => {
+              const clean = prev.filter(Boolean);
+              if (clean.includes(newStakeholder.id)) return prev;
+              return [...clean, newStakeholder.id];
+            });
+            setActionMessage(`ASHA Worker "${newStakeholder.fullName}" created and selected.`);
+          }
         }}
       />
     </div>

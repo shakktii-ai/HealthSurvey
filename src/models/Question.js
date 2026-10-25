@@ -49,7 +49,7 @@ const QuestionSchema = new mongoose.Schema(
     category: {
       type: String,
       enum: {
-        values: ["family", "asha", "facility_staff", "light_touch", "govt_official"],
+        values: ["family", "asha", "facility_staff", "light_touch", "govt_official", "doctor"],
         message: "{VALUE} is not a valid questionnaire category",
       },
       required: [true, "Questionnaire category is required"],

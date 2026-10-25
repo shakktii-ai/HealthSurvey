@@ -37,6 +37,7 @@ export async function listFamilies({
   facilityId = "",
   villageId = "",
   ashaId = "",
+  doctorId = "",
   shortlisted = "",
   status = "",
   search = "",
@@ -51,7 +52,10 @@ export async function listFamilies({
   if (mandalId) query.mandal = mandalId;
   if (facilityId) query.facility = facilityId;
   if (villageId) query.village = villageId;
-  if (ashaId) query.asha = ashaId;
+  if (doctorId) query.doctor = doctorId;
+  if (ashaId) {
+    query.$or = [{ asha: ashaId }, { ashas: ashaId }];
+  }
 
   if (shortlisted === "true" || shortlisted === true) query.shortlisted = true;
   if (shortlisted === "false" || shortlisted === false) query.shortlisted = false;
@@ -87,7 +91,9 @@ export async function listFamilies({
       .populate("mandal", "name code")
       .populate("facility", "name code facilityType")
       .populate("village", "name code")
-      .populate("asha", "fullName designation")
+      .populate("asha", "fullName designation phone stakeholderType")
+      .populate("ashas", "fullName designation phone stakeholderType")
+      .populate("doctor", "fullName designation phone stakeholderType")
       .populate("createdBy", "name email"),
   ]);
 
@@ -110,7 +116,9 @@ export async function getFamilyById(id, { isSuperadmin = true } = {}) {
     .populate("mandal", "name code")
     .populate("facility", "name code facilityType serviceCategory")
     .populate("village", "name code")
-    .populate("asha", "fullName designation phone")
+    .populate("asha", "fullName designation phone stakeholderType")
+    .populate("ashas", "fullName designation phone stakeholderType")
+    .populate("doctor", "fullName designation phone stakeholderType")
     .populate("createdBy", "name email");
 
   return family ? family.toSafeObject({ isSuperadmin }) : null;
@@ -119,7 +127,7 @@ export async function getFamilyById(id, { isSuperadmin = true } = {}) {
 /**
  * Validate that Project -> Mandal -> Facility -> Village -> ASHA form a valid, active hierarchy.
  */
-async function validateHierarchy({ projectId, mandalId, facilityId, villageId, ashaId }) {
+async function validateHierarchy({ projectId, mandalId, facilityId, villageId, ashaId = null, ashaIds = [], doctorId = null }) {
   const [project, mandal, facility, village] = await Promise.all([
     Project.findById(projectId),
     Mandal.findById(mandalId),
@@ -154,21 +162,52 @@ async function validateHierarchy({ projectId, mandalId, facilityId, villageId, a
     return { valid: false, error: "Selected village does not belong to the selected facility catchment", status: 400 };
   }
 
-  let ashaRecord = null;
-  if (ashaId) {
-    ashaRecord = await Stakeholder.findById(ashaId);
+  // Support multiple ASHA workers with deduplication
+  const targetAshaIds = [...new Set((Array.isArray(ashaIds) && ashaIds.length > 0 ? ashaIds : [ashaId]).filter(Boolean))];
+  const ashaRecords = [];
+
+  for (const aId of targetAshaIds) {
+    const ashaRecord = await Stakeholder.findById(aId);
     if (!ashaRecord || ashaRecord.status !== "active") {
-      return { valid: false, error: "Associated ASHA is invalid or inactive", status: 400 };
+      return { valid: false, error: `Associated ASHA (${aId}) is invalid or inactive`, status: 400 };
     }
     if (ashaRecord.stakeholderType !== "asha") {
-      return { valid: false, error: "Selected stakeholder is not an ASHA worker", status: 400 };
+      return { valid: false, error: `Selected stakeholder '${ashaRecord.fullName}' is not an ASHA worker`, status: 400 };
     }
     if (ashaRecord.mandalId.toString() !== mandalId) {
-      return { valid: false, error: "Selected ASHA does not operate in the selected mandal", status: 400 };
+      return { valid: false, error: `Selected ASHA '${ashaRecord.fullName}' does not operate in the selected mandal`, status: 400 };
+    }
+    ashaRecords.push(ashaRecord);
+  }
+
+  // Validate Doctor if provided
+  let doctorRecord = null;
+  if (doctorId) {
+    doctorRecord = await Stakeholder.findById(doctorId);
+    if (!doctorRecord || doctorRecord.status !== "active") {
+      return { valid: false, error: "Associated doctor is invalid or inactive", status: 400 };
+    }
+    if (!["doctor", "facility_staff"].includes(doctorRecord.stakeholderType)) {
+      return { valid: false, error: "Selected stakeholder is not a doctor or medical officer", status: 400 };
+    }
+    if (doctorRecord.projectId && doctorRecord.projectId.toString() !== projectId) {
+      return { valid: false, error: "Selected doctor does not belong to the selected project", status: 400 };
+    }
+    if (doctorRecord.facilityId && doctorRecord.facilityId.toString() !== facilityId) {
+      return { valid: false, error: "Selected doctor operates in a different health facility", status: 400 };
     }
   }
 
-  return { valid: true, project, mandal, facility, village, asha: ashaRecord };
+  return {
+    valid: true,
+    project,
+    mandal,
+    facility,
+    village,
+    asha: ashaRecords[0] || null,
+    ashas: ashaRecords,
+    doctor: doctorRecord,
+  };
 }
 
 /**
@@ -181,6 +220,8 @@ export async function createFamily(data, actor) {
     facilityId,
     villageId,
     ashaId = null,
+    ashaIds = [],
+    doctorId = null,
     householdHeadName,
     phoneNumber = "",
     phoneOwner = "own",
@@ -218,8 +259,18 @@ export async function createFamily(data, actor) {
 
   await connectToDatabase();
 
-  // 2. Strict Geographic Hierarchy Validation
-  const hierarchyResult = await validateHierarchy({ projectId, mandalId, facilityId, villageId, ashaId });
+  // Deduplicate and resolve ASHA IDs
+  const resolvedAshaIds = [...new Set((Array.isArray(ashaIds) && ashaIds.length > 0 ? ashaIds : [ashaId]).filter(Boolean))];
+
+  // 2. Strict Geographic Hierarchy & Stakeholder Validation
+  const hierarchyResult = await validateHierarchy({
+    projectId,
+    mandalId,
+    facilityId,
+    villageId,
+    ashaIds: resolvedAshaIds,
+    doctorId,
+  });
   if (!hierarchyResult.valid) {
     return { success: false, error: hierarchyResult.error, status: hierarchyResult.status };
   }
@@ -279,7 +330,9 @@ export async function createFamily(data, actor) {
         mandal: mandalId,
         facility: facilityId,
         village: villageId,
-        asha: ashaId || null,
+        asha: resolvedAshaIds[0] || null,
+        ashas: resolvedAshaIds,
+        doctor: doctorId || null,
         householdHeadName: householdHeadName.trim(),
         phoneNumber: phoneNumber ? phoneNumber.trim() : "",
         normalizedPhone,
@@ -316,7 +369,9 @@ export async function createFamily(data, actor) {
     { path: "mandal", select: "name code" },
     { path: "facility", select: "name code facilityType" },
     { path: "village", select: "name code" },
-    { path: "asha", select: "fullName designation" },
+    { path: "asha", select: "fullName designation phone stakeholderType" },
+    { path: "ashas", select: "fullName designation phone stakeholderType" },
+    { path: "doctor", select: "fullName designation phone stakeholderType" },
     { path: "createdBy", select: "name email" },
   ]);
 
@@ -343,31 +398,44 @@ export async function updateFamily(id, updates, actor) {
 
   const before = family.toObject();
 
-  // Validate hierarchy if any geographic field changed
+  // Validate hierarchy if any geographic or stakeholder field changed
   const projectId = updates.projectId || family.project.toString();
   const mandalId = updates.mandalId || family.mandal.toString();
   const facilityId = updates.facilityId || family.facility.toString();
   const villageId = updates.villageId || family.village.toString();
-  const ashaId = updates.ashaId !== undefined ? updates.ashaId : family.asha?.toString();
+  
+  const rawAshaIds = updates.ashaIds !== undefined
+    ? updates.ashaIds
+    : updates.ashaId !== undefined
+    ? (updates.ashaId ? [updates.ashaId] : [])
+    : (Array.isArray(family.ashas) && family.ashas.length > 0
+        ? family.ashas.map((a) => a.toString())
+        : (family.asha ? [family.asha.toString()] : []));
+  const resolvedAshaIds = [...new Set((Array.isArray(rawAshaIds) ? rawAshaIds : []).filter(Boolean))];
 
-  const isGeoChanged =
-    projectId !== family.project.toString() ||
-    mandalId !== family.mandal.toString() ||
-    facilityId !== family.facility.toString() ||
-    villageId !== family.village.toString() ||
-    ashaId !== (family.asha ? family.asha.toString() : null);
+  const doctorId = updates.doctorId !== undefined
+    ? updates.doctorId
+    : (family.doctor ? family.doctor.toString() : null);
 
-  if (isGeoChanged) {
-    const hierarchyResult = await validateHierarchy({ projectId, mandalId, facilityId, villageId, ashaId });
-    if (!hierarchyResult.valid) {
-      return { success: false, error: hierarchyResult.error, status: hierarchyResult.status };
-    }
-    family.project = projectId;
-    family.mandal = mandalId;
-    family.facility = facilityId;
-    family.village = villageId;
-    family.asha = ashaId || null;
+  const hierarchyResult = await validateHierarchy({
+    projectId,
+    mandalId,
+    facilityId,
+    villageId,
+    ashaIds: resolvedAshaIds,
+    doctorId,
+  });
+  if (!hierarchyResult.valid) {
+    return { success: false, error: hierarchyResult.error, status: hierarchyResult.status };
   }
+
+  family.project = projectId;
+  family.mandal = mandalId;
+  family.facility = facilityId;
+  family.village = villageId;
+  family.asha = resolvedAshaIds[0] || null;
+  family.ashas = resolvedAshaIds;
+  family.doctor = doctorId || null;
 
   // Update demographic & survey fields
   if (updates.householdHeadName) family.householdHeadName = updates.householdHeadName.trim();
@@ -394,7 +462,9 @@ export async function updateFamily(id, updates, actor) {
     { path: "mandal", select: "name code" },
     { path: "facility", select: "name code facilityType" },
     { path: "village", select: "name code" },
-    { path: "asha", select: "fullName designation" },
+    { path: "asha", select: "fullName designation phone stakeholderType" },
+    { path: "ashas", select: "fullName designation phone stakeholderType" },
+    { path: "doctor", select: "fullName designation phone stakeholderType" },
     { path: "createdBy", select: "name email" },
   ]);
 

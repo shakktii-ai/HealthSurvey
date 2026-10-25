@@ -22,6 +22,7 @@ import {
   FolderIcon,
   PlusIcon,
   UsersIcon,
+  StethoscopeIcon,
 } from "@/components/common/Icons";
 import AddStakeholderModal from "@/components/common/AddStakeholderModal";
 
@@ -301,9 +302,18 @@ export default function FamilyWorkflowStepper({ assignmentId }) {
               </span>
             )}
           </div>
-          <Link href="/field/assignments" className="text-teal-700 hover:text-teal-900 font-semibold">
-            ← Back to Assignment List
-          </Link>
+          <div className="flex items-center gap-3">
+            <Link
+              href={`/field/doctor-interviews?familyId=${family.id || family._id}`}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-100 font-bold transition-colors"
+            >
+              <StethoscopeIcon className="w-3.5 h-3.5" />
+              <span>Doctor Clinical Review →</span>
+            </Link>
+            <Link href="/field/assignments" className="text-teal-700 hover:text-teal-900 font-semibold">
+              ← Back to Assignment List
+            </Link>
+          </div>
         </div>
       </Card>
 

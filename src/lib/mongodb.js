@@ -20,6 +20,7 @@ import "@/models/DataQualityIssue";
 import "@/models/DonorProjectAccess";
 import "@/models/AuditLog";
 import "@/models/Counter";
+import "@/models/DoctorInterview";
 
 /**
  * MongoDB Connection Handler using Mongoose.

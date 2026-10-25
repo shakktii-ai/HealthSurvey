@@ -66,6 +66,38 @@ const StakeholderSchema = new mongoose.Schema(
   }
 );
 
+StakeholderSchema.virtual("mandal", {
+  ref: "Mandal",
+  localField: "mandalId",
+  foreignField: "_id",
+  justOne: true,
+});
+
+StakeholderSchema.virtual("facility", {
+  ref: "Facility",
+  localField: "facilityId",
+  foreignField: "_id",
+  justOne: true,
+});
+
+StakeholderSchema.virtual("village", {
+  ref: "Village",
+  localField: "villageId",
+  foreignField: "_id",
+  justOne: true,
+});
+
+StakeholderSchema.virtual("project", {
+  ref: "Project",
+  localField: "projectId",
+  foreignField: "_id",
+  justOne: true,
+});
+
+StakeholderSchema.set("toObject", { virtuals: true });
+StakeholderSchema.set("toJSON", { virtuals: true });
+StakeholderSchema.set("strictPopulate", false);
+
 StakeholderSchema.methods.toSafeObject = function () {
   return {
     id: this._id.toString(),
@@ -87,7 +119,12 @@ StakeholderSchema.methods.toSafeObject = function () {
   };
 };
 
+if (process.env.NODE_ENV !== "production") {
+  delete mongoose.models.Stakeholder;
+}
+
 const Stakeholder =
   mongoose.models.Stakeholder || mongoose.model("Stakeholder", StakeholderSchema);
 
 export default Stakeholder;
+

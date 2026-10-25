@@ -28,12 +28,28 @@ const TYPE_CONFIG = {
   },
 };
 
+const getRefId = (val) => {
+  if (!val) return "";
+  if (typeof val === "string") return val;
+  if (typeof val === "object") return (val._id || val.id || "")?.toString();
+  return String(val);
+};
+
 export default function AddStakeholderModal({
   isOpen,
   onClose,
   onStakeholderCreated,
   defaultValues = {},
+  initialProjectId,
+  initialMandalId,
+  initialFacilityId,
+  initialVillageId,
+  initialStakeholderType,
   lockGeography = false,
+  projects: propProjects,
+  mandals: propMandals,
+  facilities: propFacilities,
+  villages: propVillages,
 }) {
   const [fullName, setFullName] = useState("");
   const [stakeholderType, setStakeholderType] = useState("asha");
@@ -45,10 +61,10 @@ export default function AddStakeholderModal({
   const [villageId, setVillageId] = useState("");
 
   // Metadata dropdown options
-  const [projects, setProjects] = useState([]);
-  const [mandals, setMandals] = useState([]);
-  const [facilities, setFacilities] = useState([]);
-  const [villages, setVillages] = useState([]);
+  const [projects, setProjects] = useState(propProjects || []);
+  const [mandals, setMandals] = useState(propMandals || []);
+  const [facilities, setFacilities] = useState(propFacilities || []);
+  const [villages, setVillages] = useState(propVillages || []);
 
   // States
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -59,52 +75,168 @@ export default function AddStakeholderModal({
   useEffect(() => {
     if (isOpen) {
       setFullName(defaultValues.fullName || "");
-      const initialType = defaultValues.stakeholderType || "asha";
+      const initialType = defaultValues.stakeholderType || initialStakeholderType || "asha";
       setStakeholderType(initialType);
       setDesignation(defaultValues.designation || TYPE_CONFIG[initialType]?.defaultDesignation || "");
       setPhone(defaultValues.phone || "");
-      setProjectId(defaultValues.projectId || "");
-      setMandalId(defaultValues.mandalId || "");
-      setFacilityId(defaultValues.facilityId || "");
-      setVillageId(defaultValues.villageId || "");
+
+      const initProj = defaultValues.projectId || initialProjectId || "";
+      const initFac = defaultValues.facilityId || initialFacilityId || "";
+      const initMan = defaultValues.mandalId || initialMandalId || "";
+      const initVil = defaultValues.villageId || initialVillageId || "";
+
+      setProjectId(initProj);
+      setFacilityId(initFac);
+      setMandalId(initMan);
+      setVillageId(initVil);
       setError("");
       setExistingDuplicate(null);
 
+      if (propProjects?.length) setProjects(propProjects);
+      if (propMandals?.length) setMandals(propMandals);
+      if (propFacilities?.length) setFacilities(propFacilities);
+      if (propVillages?.length) setVillages(propVillages);
+
       // Fetch metadata
-      fetchMetadata();
+      fetchMetadata(initFac, initMan);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, defaultValues]);
+  }, [isOpen, defaultValues, propProjects, propMandals, propFacilities, propVillages]);
 
-  async function fetchMetadata() {
+  async function fetchMetadata(currentFacId, currentMandalId) {
     try {
+      // 1. Try field metadata first (accessible to both field_worker and superadmin)
+      const fieldMetaRes = await fetch("/api/field/doctor-interviews/metadata").catch(() => null);
+      if (fieldMetaRes && fieldMetaRes.ok) {
+        const d = await fieldMetaRes.json().catch(() => ({}));
+        if (d.success) {
+          const fetchedProjects = d.projects || [];
+          const fetchedMandals = d.mandals || [];
+          const fetchedFacilities = d.facilities || [];
+          const fetchedVillages = d.villages || [];
+
+          setProjects(fetchedProjects);
+          setMandals(fetchedMandals);
+          setFacilities(fetchedFacilities);
+          setVillages(fetchedVillages);
+
+          // Auto-resolve mandal from facility if needed
+          const targetFacId = currentFacId || facilityId;
+          const targetManId = currentMandalId || mandalId;
+          if (targetFacId && !targetManId) {
+            const fac = fetchedFacilities.find((f) => (f.id || f._id) === targetFacId);
+            if (fac) {
+              const autoMandal = getRefId(fac.mandalId) || getRefId(fac.mandal);
+              if (autoMandal) setMandalId(autoMandal);
+            }
+          }
+          return;
+        }
+      }
+
+      // 2. Fallback to admin endpoints (if user is superadmin)
       const [projRes, manRes, facRes, vilRes] = await Promise.all([
-        fetch("/api/admin/projects?status=active&limit=100"),
-        fetch("/api/admin/mandals?status=active&limit=200"),
-        fetch("/api/admin/facilities?status=active&limit=300"),
-        fetch("/api/admin/villages?status=active&limit=500"),
+        fetch("/api/admin/projects?status=active&limit=100").catch(() => ({ ok: false })),
+        fetch("/api/admin/mandals?status=active&limit=200").catch(() => ({ ok: false })),
+        fetch("/api/admin/facilities?status=active&limit=300").catch(() => ({ ok: false })),
+        fetch("/api/admin/villages?status=active&limit=500").catch(() => ({ ok: false })),
       ]);
 
       const [projData, manData, facData, vilData] = await Promise.all([
-        projRes.json(),
-        manRes.json(),
-        facRes.json(),
-        vilRes.json(),
+        projRes.ok ? projRes.json().catch(() => ({})) : {},
+        manRes.ok ? manRes.json().catch(() => ({})) : {},
+        facRes.ok ? facRes.json().catch(() => ({})) : {},
+        vilRes.ok ? vilRes.json().catch(() => ({})) : {},
       ]);
 
-      if (projRes.ok && projData.success) setProjects(projData.items || []);
-      if (manRes.ok && manData.success) setMandals(manData.items || []);
-      if (facRes.ok && facData.success) setFacilities(facData.items || []);
-      if (vilRes.ok && vilData.success) setVillages(vilData.items || []);
+      if (projData?.items) setProjects(projData.items);
+      if (manData?.items) setMandals(manData.items);
+      if (facData?.items) setFacilities(facData.items);
+      if (vilData?.items) setVillages(vilData.items);
     } catch (err) {
       console.error("Failed to load metadata in AddStakeholderModal:", err);
     }
   }
 
+  // Auto-resolve mandal if facility is set but mandal is not
+  useEffect(() => {
+    if (facilityId && !mandalId && facilities.length > 0) {
+      const fac = facilities.find((f) => (f.id || f._id) === facilityId);
+      if (fac) {
+        const mId = getRefId(fac.mandalId) || getRefId(fac.mandal);
+        if (mId) setMandalId(mId);
+      }
+    }
+  }, [facilities, facilityId, mandalId]);
+
+  // Auto-select project if only 1 project is available
+  useEffect(() => {
+    if (!projectId && projects.length === 1) {
+      setProjectId(projects[0].id || projects[0]._id);
+    }
+  }, [projects, projectId]);
+
   // Filter mandals, facilities, villages based on selections
-  const filteredMandals = mandals.filter((m) => !projectId || m.projectId === projectId || m.project?._id === projectId || m.project?.id === projectId);
-  const filteredFacilities = facilities.filter((f) => !mandalId || f.mandalId === mandalId || f.mandal?._id === mandalId || f.mandal?.id === mandalId);
-  const filteredVillages = villages.filter((v) => !mandalId || v.mandalId === mandalId || v.mandal?._id === mandalId || v.mandal?.id === mandalId);
+  const filteredMandals = mandals.filter((m) => {
+    if (!projectId) return true;
+    const pId = getRefId(m.projectId) || getRefId(m.project);
+    return !pId || pId === projectId;
+  });
+
+  const filteredFacilities = facilities.filter((f) => {
+    if (mandalId) {
+      const mId = getRefId(f.mandalId) || getRefId(f.mandal);
+      if (mId && mId !== mandalId) return false;
+    }
+    if (projectId) {
+      const pId = getRefId(f.projectId) || getRefId(f.project);
+      if (pId && pId !== projectId) return false;
+    }
+    return true;
+  });
+
+  const filteredVillages = villages.filter((v) => {
+    if (mandalId) {
+      const mId = getRefId(v.mandalId) || getRefId(v.mandal);
+      if (mId && mId !== mandalId) return false;
+    }
+    if (projectId) {
+      const pId = getRefId(v.projectId) || getRefId(v.project);
+      if (pId && pId !== projectId) return false;
+    }
+    return true;
+  });
+
+  const handleFacilityChange = (newFacId) => {
+    setFacilityId(newFacId);
+    if (newFacId) {
+      const fac = facilities.find((f) => (f.id || f._id) === newFacId);
+      if (fac) {
+        const facMandalId = getRefId(fac.mandalId) || getRefId(fac.mandal);
+        if (facMandalId && !mandalId) {
+          setMandalId(facMandalId);
+        }
+        const facProjId = getRefId(fac.projectId) || getRefId(fac.project);
+        if (facProjId && !projectId) {
+          setProjectId(facProjId);
+        }
+      }
+    }
+  };
+
+  const handleMandalChange = (newMandalId) => {
+    setMandalId(newMandalId);
+    if (facilityId) {
+      const fac = facilities.find((f) => (f.id || f._id) === facilityId);
+      if (fac) {
+        const facMandalId = getRefId(fac.mandalId) || getRefId(fac.mandal);
+        if (facMandalId && facMandalId !== newMandalId) {
+          setFacilityId("");
+        }
+      }
+    }
+    setVillageId("");
+  };
 
   const handleTypeChange = (newType) => {
     setStakeholderType(newType);
@@ -364,25 +496,21 @@ export default function AddStakeholderModal({
                 </label>
                 {lockGeography && mandalId ? (
                   <div className="p-2.5 bg-slate-100 rounded-xl border border-slate-200 text-xs font-bold text-slate-800">
-                    {mandals.find((m) => m.id === mandalId)?.name || "Current Mandal"}
+                    {mandals.find((m) => (m.id || m._id) === mandalId)?.name || "Current Mandal"}
                   </div>
                 ) : (
                   <select
                     required
                     value={mandalId}
-                    onChange={(e) => {
-                      setMandalId(e.target.value);
-                      setFacilityId("");
-                      setVillageId("");
-                    }}
-                    disabled={!projectId}
+                    onChange={(e) => handleMandalChange(e.target.value)}
+                    disabled={!projectId && projects.length > 0}
                     className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs text-slate-900 focus:border-emerald-500 focus:outline-hidden disabled:bg-slate-100 disabled:text-slate-400"
                   >
                     <option value="" disabled>
                       Select Mandal
                     </option>
                     {filteredMandals.map((m) => (
-                      <option key={m.id} value={m.id}>
+                      <option key={m.id || m._id} value={m.id || m._id}>
                         {m.name}
                       </option>
                     ))}
@@ -398,14 +526,14 @@ export default function AddStakeholderModal({
                 </label>
                 <select
                   value={facilityId}
-                  onChange={(e) => setFacilityId(e.target.value)}
-                  disabled={!mandalId}
+                  onChange={(e) => handleFacilityChange(e.target.value)}
+                  disabled={!mandalId && !projectId}
                   className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs text-slate-900 focus:border-emerald-500 focus:outline-hidden disabled:bg-slate-100 disabled:text-slate-400"
                 >
                   <option value="">None / Not Specific</option>
                   {filteredFacilities.map((f) => (
-                    <option key={f.id} value={f.id}>
-                      {f.name} ({f.facilityType || "PHC"})
+                    <option key={f.id || f._id} value={f.id || f._id}>
+                      {f.name} ({f.facilityType || f.serviceCategory || "PHC"})
                     </option>
                   ))}
                 </select>
@@ -418,12 +546,12 @@ export default function AddStakeholderModal({
                 <select
                   value={villageId}
                   onChange={(e) => setVillageId(e.target.value)}
-                  disabled={!mandalId}
+                  disabled={!mandalId && !projectId}
                   className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs text-slate-900 focus:border-emerald-500 focus:outline-hidden disabled:bg-slate-100 disabled:text-slate-400"
                 >
                   <option value="">None / Mandal Level</option>
                   {filteredVillages.map((v) => (
-                    <option key={v.id} value={v.id}>
+                    <option key={v.id || v._id} value={v.id || v._id}>
                       {v.name}
                     </option>
                   ))}

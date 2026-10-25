@@ -17,6 +17,7 @@ export const QUESTIONNAIRE_CATEGORIES = {
   FACILITY_STAFF: "facility_staff",
   LIGHT_TOUCH: "light_touch",
   GOVT_OFFICIAL: "govt_official",
+  DOCTOR: "doctor",
 };
 
 export const QUESTIONNAIRE_CATEGORY_LABELS = {
@@ -25,6 +26,7 @@ export const QUESTIONNAIRE_CATEGORY_LABELS = {
   facility_staff: "Facility Staff",
   light_touch: "Light-touch Phone Call",
   govt_official: "Government Official",
+  doctor: "Doctor Interview",
 };
 
 export const ANSWER_TYPES = {

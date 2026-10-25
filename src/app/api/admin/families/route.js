@@ -15,6 +15,7 @@ export async function GET(request) {
     const facilityId = searchParams.get("facilityId") || "";
     const villageId = searchParams.get("villageId") || "";
     const ashaId = searchParams.get("ashaId") || "";
+    const doctorId = searchParams.get("doctorId") || "";
     const shortlisted = searchParams.get("shortlisted") || "";
     const status = searchParams.get("status") || "";
     const search = searchParams.get("search") || "";
@@ -27,6 +28,7 @@ export async function GET(request) {
       facilityId,
       villageId,
       ashaId,
+      doctorId,
       shortlisted,
       status,
       search,
@@ -77,6 +79,6 @@ export async function POST(request) {
     );
   } catch (error) {
     console.error("Create family error:", error);
-    return NextResponse.json({ success: false, error: "Failed to register family" }, { status: 500 });
+    return NextResponse.json({ success: false, error: error.message || "Failed to register family" }, { status: 500 });
   }
 }

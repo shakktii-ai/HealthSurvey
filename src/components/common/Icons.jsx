@@ -336,3 +336,11 @@ export function FilterIcon({ className = "w-5 h-5" }) {
     </svg>
   );
 }
+
+export function StethoscopeIcon({ className = "w-5 h-5" }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M8 3v4a4 4 0 008 0V3m-4 8v5a4 4 0 008 0v-1a2 2 0 10-4 0v1a2 2 0 01-4 0v-5m-8-8h2m8 0h2" />
+    </svg>
+  );
+}

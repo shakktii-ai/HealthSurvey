@@ -24,7 +24,8 @@
     "test:workflow": "node scripts/test-workflow.js",
     "test:qb": "node scripts/test-question-bank.js",
     "test:cleanup": "node scripts/test-cleanup-dashboard.js",
-    "test:bulk-import": "node scripts/test-bulk-import.js"
+    "test:bulk-import": "node scripts/test-bulk-import.js",
+    "test:client-enhancements": "node scripts/test-client-enhancements.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

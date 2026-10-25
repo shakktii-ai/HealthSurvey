@@ -20,6 +20,7 @@ import {
   CalendarIcon,
   UploadIcon,
   HistoryIcon,
+  StethoscopeIcon,
 } from "@/components/common/Icons";
 
 export default function Sidebar({ isOpen, onClose }) {
@@ -58,6 +59,7 @@ export default function Sidebar({ isOpen, onClose }) {
     { name: "Villages", href: "/admin/villages", icon: ActivityIcon },
     { name: "Stakeholders", href: "/admin/stakeholders", icon: UsersIcon },
     { name: "Families", href: "/admin/families", icon: HomeIcon },
+    { name: "Doctor Interviews", href: "/admin/doctor-interviews", icon: StethoscopeIcon },
     { name: "Bulk Excel Import", href: "/admin/bulk-import", icon: UploadIcon },
     { name: "Question Bank", href: "/admin/question-bank", icon: QuestionMarkCircleIcon },
     { name: "Survey Rounds", href: "/admin/survey-rounds", icon: CalendarIcon },
@@ -246,6 +248,18 @@ export default function Sidebar({ isOpen, onClose }) {
                 >
                   <MapPinIcon className="w-4 h-4 text-emerald-600 shrink-0" />
                   <span>My Field Assignments</span>
+                </Link>
+                <Link
+                  href="/field/doctor-interviews"
+                  onClick={onClose}
+                  className={`flex items-center gap-2.5 px-2.5 py-2 text-xs rounded-lg transition-colors ${
+                    pathname.startsWith("/field/doctor-interviews")
+                      ? "bg-emerald-50 text-emerald-800 border-l-4 border-emerald-600 font-semibold"
+                      : "text-slate-600 hover:bg-slate-50 hover:text-slate-900 font-medium"
+                  }`}
+                >
+                  <StethoscopeIcon className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span>Doctor Interviews</span>
                 </Link>
               </nav>
             </div>

@@ -57,7 +57,7 @@ const StakeholderTaskSchema = new mongoose.Schema(
       type: String,
       required: [true, "Questionnaire category is required"],
       enum: {
-        values: ["asha", "facility_staff", "light_touch", "govt_official"],
+        values: ["asha", "facility_staff", "light_touch", "govt_official", "doctor"],
         message: "{VALUE} is not a valid stakeholder questionnaire category",
       },
       index: true,
@@ -136,6 +136,8 @@ const StakeholderTaskSchema = new mongoose.Schema(
     timestamps: true,
   }
 );
+
+StakeholderTaskSchema.set("strictPopulate", false);
 
 // Prevent duplicate active/completed tasks for same stakeholder, project, round, and category
 StakeholderTaskSchema.index(

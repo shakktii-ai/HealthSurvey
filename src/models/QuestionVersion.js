@@ -59,7 +59,7 @@ const QuestionVersionSchema = new mongoose.Schema(
     },
     category: {
       type: String,
-      enum: ["family", "asha", "facility_staff", "light_touch", "govt_official"],
+      enum: ["family", "asha", "facility_staff", "light_touch", "govt_official", "doctor"],
       required: true,
       index: true,
     },

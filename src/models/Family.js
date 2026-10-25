@@ -40,6 +40,18 @@ const FamilySchema = new mongoose.Schema(
       default: null,
       index: true,
     },
+    ashas: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Stakeholder",
+      },
+    ],
+    doctor: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Stakeholder",
+      default: null,
+      index: true,
+    },
     householdHeadName: {
       type: String,
       required: [true, "Household head name is required"],
@@ -191,8 +203,26 @@ FamilySchema.methods.toSafeObject = function (options = {}) {
     : undefined;
 
   const ashaObj = this.asha?._id
-    ? { id: this.asha._id.toString(), fullName: this.asha.fullName, designation: this.asha.designation }
+    ? { id: this.asha._id.toString(), fullName: this.asha.fullName, designation: this.asha.designation, phone: this.asha.phone }
     : null;
+
+  const doctorObj = this.doctor?._id
+    ? { id: this.doctor._id.toString(), fullName: this.doctor.fullName, designation: this.doctor.designation, phone: this.doctor.phone }
+    : null;
+
+  // Support multiple ASHAs with backward compatibility to single asha
+  let ashasList = [];
+  if (Array.isArray(this.ashas) && this.ashas.length > 0) {
+    ashasList = this.ashas
+      .map((a) =>
+        a?._id
+          ? { id: a._id.toString(), fullName: a.fullName, designation: a.designation, phone: a.phone }
+          : null
+      )
+      .filter(Boolean);
+  } else if (ashaObj) {
+    ashasList = [ashaObj];
+  }
 
   const creatorObj = this.createdBy?._id
     ? { id: this.createdBy._id.toString(), name: this.createdBy.name, email: this.createdBy.email }
@@ -218,8 +248,14 @@ FamilySchema.methods.toSafeObject = function (options = {}) {
     facility: facilityObj,
     villageId: this.village?._id ? this.village._id.toString() : this.village?.toString(),
     village: villageObj,
-    ashaId: this.asha?._id ? this.asha._id.toString() : this.asha?.toString() || null,
-    asha: ashaObj,
+    ashaId: this.asha?._id ? this.asha._id.toString() : this.asha?.toString() || (ashasList[0]?.id || null),
+    asha: ashaObj || ashasList[0] || null,
+    ashas: ashasList,
+    ashaIds: Array.isArray(this.ashas) && this.ashas.length > 0
+      ? this.ashas.map((a) => (a?._id ? a._id.toString() : a?.toString())).filter(Boolean)
+      : ashaObj ? [ashaObj.id] : [],
+    doctorId: this.doctor?._id ? this.doctor._id.toString() : this.doctor?.toString() || null,
+    doctor: doctorObj,
     householdHeadName: safeName,
     phoneNumber: safePhone,
     phoneOwner: this.phoneOwner,
@@ -238,6 +274,12 @@ FamilySchema.methods.toSafeObject = function (options = {}) {
     updatedAt: this.updatedAt,
   };
 };
+
+FamilySchema.set("strictPopulate", false);
+
+if (process.env.NODE_ENV !== "production") {
+  delete mongoose.models.Family;
+}
 
 const Family = mongoose.models.Family || mongoose.model("Family", FamilySchema);
 

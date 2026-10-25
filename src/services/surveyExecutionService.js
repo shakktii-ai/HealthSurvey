@@ -35,8 +35,12 @@ async function verifyTaskOwnership({ assignmentId = "", stakeholderTaskId = "" }
       .populate("surveyRound", "name code enableLightTouch status")
       .populate({
         path: "family",
-        select: "familyCode householdHeadName village mandal facility status asha",
-        populate: { path: "asha", select: "fullName designation phone stakeholderType" },
+        select: "familyCode householdHeadName village mandal facility status asha ashas doctor",
+        populate: [
+          { path: "asha", select: "fullName designation phone stakeholderType" },
+          { path: "ashas", select: "fullName designation phone stakeholderType" },
+          { path: "doctor", select: "fullName designation phone stakeholderType" },
+        ],
       })
       .populate("village", "name code")
       .populate("mandal", "name code")
@@ -234,6 +238,22 @@ export async function getExecutionSurveyData(
                   id: task.family.asha._id ? task.family.asha._id.toString() : task.family.asha.toString(),
                   fullName: task.family.asha.fullName || "",
                   designation: task.family.asha.designation || "ASHA Worker",
+                }
+              : null,
+            ashas: Array.isArray(task.family.ashas)
+              ? task.family.ashas.map((a) => ({
+                  id: a._id ? a._id.toString() : a.toString(),
+                  fullName: a.fullName || "",
+                  designation: a.designation || "ASHA Worker",
+                  phone: a.phone || "",
+                }))
+              : [],
+            doctor: task.family.doctor
+              ? {
+                  id: task.family.doctor._id ? task.family.doctor._id.toString() : task.family.doctor.toString(),
+                  fullName: task.family.doctor.fullName || "",
+                  designation: task.family.doctor.designation || "Doctor / Medical Officer",
+                  phone: task.family.doctor.phone || "",
                 }
               : null,
           }

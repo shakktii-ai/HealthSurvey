@@ -115,7 +115,7 @@ const SurveyResponseSchema = new mongoose.Schema(
       type: String,
       required: [true, "Questionnaire category is required"],
       enum: {
-        values: ["family", "asha", "facility_staff", "light_touch", "govt_official"],
+        values: ["family", "asha", "facility_staff", "light_touch", "govt_official", "doctor"],
         message: "{VALUE} is not a valid questionnaire category",
       },
       index: true,
