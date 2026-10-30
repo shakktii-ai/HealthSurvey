@@ -5,6 +5,7 @@ import Card, { CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Badge from "@/components/ui/Badge";
 import AddStakeholderModal from "@/components/common/AddStakeholderModal";
+import PermanentDeleteStakeholderModal from "@/components/admin/PermanentDeleteStakeholderModal";
 import {
   StethoscopeIcon,
   SearchIcon,
@@ -20,6 +21,7 @@ import {
   EditIcon,
   RefreshIcon,
   ClipboardIcon,
+  TrashIcon,
 } from "@/components/common/Icons";
 
 const STATUS_VARIANTS = {
@@ -66,6 +68,15 @@ export default function DoctorInterviewManager({ userRole = "superadmin" }) {
   const [isExecuteOpen, setIsExecuteOpen] = useState(false);
   const [activeInterviewForExec, setActiveInterviewForExec] = useState(null);
   const [isAddDoctorModalOpen, setIsAddDoctorModalOpen] = useState(false);
+
+  // Doctor Directory & Permanent Deletion State
+  const [activeMainTab, setActiveMainTab] = useState("interviews"); // "interviews" | "doctors"
+  const [doctorToDelete, setDoctorToDelete] = useState(null);
+  const [isDeleteDoctorModalOpen, setIsDeleteDoctorModalOpen] = useState(false);
+  const [doctorSearch, setDoctorSearch] = useState("");
+  const [doctorProjectFilter, setDoctorProjectFilter] = useState("");
+  const [doctorFacilityFilter, setDoctorFacilityFilter] = useState("");
+  const [revealedDoctorPhones, setRevealedDoctorPhones] = useState({});
 
   // Form State: Create/Edit
   const [formProjectId, setFormProjectId] = useState("");
@@ -634,6 +645,28 @@ export default function DoctorInterviewManager({ userRole = "superadmin" }) {
     handleSaveFamilyAssessment({ finalize: true });
   };
 
+  const filteredDoctors = allDoctors.filter((doc) => {
+    const dName = (doc.fullName || "").toLowerCase();
+    const dDesig = (doc.designation || "").toLowerCase();
+    const dFacility = (doc.facility?.name || "").toLowerCase();
+    const q = doctorSearch.toLowerCase().trim();
+
+    const matchesSearch = !q || dName.includes(q) || dDesig.includes(q) || dFacility.includes(q);
+    const matchesProj =
+      !doctorProjectFilter ||
+      (doc.projectId || doc.project?.id || doc.project) === doctorProjectFilter;
+    const matchesFac =
+      !doctorFacilityFilter ||
+      (doc.facilityId || doc.facility?.id || doc.facility) === doctorFacilityFilter;
+
+    return matchesSearch && matchesProj && matchesFac;
+  });
+
+  function maskDoctorPhone(p) {
+    if (!p) return "Not provided";
+    if (p.length < 4) return "••••";
+    return p.slice(0, 2) + "••••••" + p.slice(-2);
+  }
 
   return (
     <div className="space-y-6">
@@ -664,7 +697,37 @@ export default function DoctorInterviewManager({ userRole = "superadmin" }) {
         </div>
       )}
 
-      {/* Summary KPI Cards */}
+      {/* Top Level Section Navigation */}
+      <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
+        <button
+          type="button"
+          onClick={() => setActiveMainTab("interviews")}
+          className={`px-4 py-2 text-xs font-bold rounded-xl transition-all flex items-center gap-2 ${
+            activeMainTab === "interviews"
+              ? "bg-blue-600 text-white shadow-xs"
+              : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+          }`}
+        >
+          <StethoscopeIcon className="w-4 h-4" />
+          <span>Doctor Clinical Interviews ({totalInterviews})</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveMainTab("doctors")}
+          className={`px-4 py-2 text-xs font-bold rounded-xl transition-all flex items-center gap-2 ${
+            activeMainTab === "doctors"
+              ? "bg-blue-600 text-white shadow-xs"
+              : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+          }`}
+        >
+          <UsersIcon className="w-4 h-4" />
+          <span>Doctor Directory & Roster ({allDoctors.length})</span>
+        </button>
+      </div>
+
+      {activeMainTab === "interviews" ? (
+        <>
+          {/* Summary KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-xs">
           <div className="flex items-center justify-between text-slate-500">
@@ -975,6 +1038,30 @@ export default function DoctorInterviewManager({ userRole = "superadmin" }) {
                           >
                             Edit
                           </button>
+                          {userRole === "superadmin" && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const docId = iv.doctor?._id || iv.doctor?.id || iv.doctor;
+                                const docObj =
+                                  allDoctors.find((d) => (d.id || d._id) === docId) || {
+                                    id: docId,
+                                    fullName: iv.doctor?.fullName || "Doctor",
+                                    stakeholderType: "doctor",
+                                    designation: iv.doctor?.designation,
+                                    facility: iv.facility,
+                                    project: iv.project,
+                                  };
+                                setDoctorToDelete(docObj);
+                                setIsDeleteDoctorModalOpen(true);
+                              }}
+                              className="inline-flex items-center gap-1 text-rose-600 hover:text-rose-800 font-semibold text-xs ml-1"
+                              title="Permanently Delete Doctor Stakeholder"
+                            >
+                              <TrashIcon className="w-3.5 h-3.5" />
+                              <span>Delete Dr.</span>
+                            </button>
+                          )}
                         </td>
                       </tr>
                     );
@@ -1010,6 +1097,185 @@ export default function DoctorInterviewManager({ userRole = "superadmin" }) {
               </div>
             )}
           </div>
+        </div>
+      )}
+        </>
+      ) : (
+        /* Doctor Directory & Management Section */
+        <div className="space-y-4">
+          <Card>
+            <CardHeader className="border-b border-slate-100 pb-4">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+                <div>
+                  <CardTitle className="text-base font-bold text-slate-900">
+                    Doctor / Medical Officer Directory ({filteredDoctors.length})
+                  </CardTitle>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Roster of registered physicians and medical officers. Permanently delete doctors or launch new consultations.
+                  </p>
+                </div>
+                <Button
+                  onClick={() => setIsAddDoctorModalOpen(true)}
+                  className="bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs flex items-center gap-1.5"
+                >
+                  <PlusIcon className="w-4 h-4" />
+                  <span>Add New Doctor</span>
+                </Button>
+              </div>
+            </CardHeader>
+
+            <CardContent className="p-4 sm:p-6 space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="relative">
+                  <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                  <input
+                    type="text"
+                    value={doctorSearch}
+                    onChange={(e) => setDoctorSearch(e.target.value)}
+                    placeholder="Search doctor name or designation..."
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50/70 pl-9 pr-4 py-2 text-xs text-slate-900 focus:bg-white focus:border-blue-500 focus:outline-none"
+                  />
+                </div>
+
+                <select
+                  value={doctorProjectFilter}
+                  onChange={(e) => setDoctorProjectFilter(e.target.value)}
+                  className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 focus:border-blue-500 focus:outline-none"
+                >
+                  <option value="">All Projects</option>
+                  {projects.map((p) => (
+                    <option key={p.id || p._id} value={p.id || p._id}>
+                      {p.name}
+                    </option>
+                  ))}
+                </select>
+
+                <select
+                  value={doctorFacilityFilter}
+                  onChange={(e) => setDoctorFacilityFilter(e.target.value)}
+                  className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 focus:border-blue-500 focus:outline-none"
+                >
+                  <option value="">All Facilities</option>
+                  {facilities.map((f) => (
+                    <option key={f.id || f._id} value={f.id || f._id}>
+                      {f.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Table */}
+              <div className="overflow-x-auto rounded-xl border border-slate-200">
+                <table className="w-full text-left text-xs text-slate-700">
+                  <thead className="bg-slate-50 text-[11px] uppercase tracking-wider text-slate-500 border-b border-slate-200">
+                    <tr>
+                      <th className="px-5 py-3 font-semibold">Doctor Details</th>
+                      <th className="px-5 py-3 font-semibold">Jurisdiction & Facility</th>
+                      <th className="px-5 py-3 font-semibold">Project</th>
+                      <th className="px-5 py-3 font-semibold">Phone (Protected PII)</th>
+                      <th className="px-5 py-3 font-semibold text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {filteredDoctors.length === 0 ? (
+                      <tr>
+                        <td colSpan={5} className="py-12 text-center text-slate-400">
+                          <UsersIcon className="w-8 h-8 mx-auto mb-2 text-slate-300" />
+                          <p className="font-semibold text-slate-600">No Doctors Found</p>
+                          <p className="text-[11px] mt-1">
+                            {doctorSearch
+                              ? "Try adjusting your search criteria"
+                              : "Click '+ Add New Doctor' to register a physician"}
+                          </p>
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredDoctors.map((doc) => {
+                        const docId = doc.id || doc._id;
+                        const isPhoneVisible = revealedDoctorPhones[docId];
+                        return (
+                          <tr key={docId} className="hover:bg-slate-50/70 transition-colors">
+                            <td className="px-5 py-3.5">
+                              <div className="font-bold text-slate-900">Dr. {doc.fullName}</div>
+                              <div className="text-[11px] text-slate-500">
+                                {doc.designation || "Medical Officer"}
+                              </div>
+                            </td>
+                            <td className="px-5 py-3.5">
+                              <div className="font-semibold text-slate-800">
+                                {doc.facility?.name || "Facility N/A"}
+                              </div>
+                              <div className="text-[11px] text-slate-500">
+                                {doc.mandal?.name || "Mandal N/A"}
+                              </div>
+                            </td>
+                            <td className="px-5 py-3.5 text-slate-700">
+                              {doc.project?.name || "Project"}
+                            </td>
+                            <td className="px-5 py-3.5">
+                              {doc.phone ? (
+                                <div className="flex items-center gap-2 font-mono text-[11px]">
+                                  <span>{isPhoneVisible ? doc.phone : maskDoctorPhone(doc.phone)}</span>
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setRevealedDoctorPhones((prev) => ({
+                                        ...prev,
+                                        [docId]: !prev[docId],
+                                      }))
+                                    }
+                                    className="text-[10px] text-blue-700 hover:text-blue-900 underline font-sans"
+                                  >
+                                    {isPhoneVisible ? "Hide" : "Show"}
+                                  </button>
+                                </div>
+                              ) : (
+                                <span className="text-slate-400 italic">None</span>
+                              )}
+                            </td>
+                            <td className="px-5 py-3.5 text-right space-x-2">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  openCreateForm();
+                                  setFormDoctorId(docId);
+                                  if (doc.projectId || doc.project?.id) {
+                                    setFormProjectId(doc.projectId || doc.project?.id);
+                                  }
+                                  if (doc.facilityId || doc.facility?.id) {
+                                    setFormFacilityId(doc.facilityId || doc.facility?.id);
+                                  }
+                                  setActiveMainTab("interviews");
+                                }}
+                                className="inline-flex items-center gap-1 text-blue-700 hover:text-blue-900 font-semibold text-xs"
+                              >
+                                <PlusIcon className="w-3.5 h-3.5" />
+                                <span>+ Interview</span>
+                              </button>
+                              {userRole === "superadmin" && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setDoctorToDelete(doc);
+                                    setIsDeleteDoctorModalOpen(true);
+                                  }}
+                                  className="inline-flex items-center gap-1 text-rose-600 hover:text-rose-800 font-semibold text-xs ml-2 transition-colors"
+                                  title="Permanently Delete Doctor Stakeholder"
+                                >
+                                  <TrashIcon className="w-3.5 h-3.5" />
+                                  <span>Delete Doctor</span>
+                                </button>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
         </div>
       )}
 
@@ -1945,6 +2211,26 @@ export default function DoctorInterviewManager({ userRole = "superadmin" }) {
             setFormMandalId(newDocManId);
           }
           setActionMessage(`Doctor "${newDoc.fullName}" created and selected.`);
+        }}
+      />
+
+      {/* MODAL 5: Permanent Delete Doctor Stakeholder Modal */}
+      <PermanentDeleteStakeholderModal
+        stakeholder={doctorToDelete}
+        isOpen={isDeleteDoctorModalOpen}
+        onClose={() => {
+          setIsDeleteDoctorModalOpen(false);
+          setDoctorToDelete(null);
+        }}
+        onDeleted={(result) => {
+          setActionMessage(
+            result.message ||
+              `Doctor "${doctorToDelete?.fullName}" and dependent records were permanently deleted.`
+          );
+          setIsDeleteDoctorModalOpen(false);
+          setDoctorToDelete(null);
+          fetchMetadata();
+          fetchInterviews();
         }}
       />
     </div>

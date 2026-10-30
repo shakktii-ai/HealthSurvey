@@ -25,7 +25,8 @@
     "test:qb": "node scripts/test-question-bank.js",
     "test:cleanup": "node scripts/test-cleanup-dashboard.js",
     "test:bulk-import": "node scripts/test-bulk-import.js",
-    "test:client-enhancements": "node scripts/test-client-enhancements.js"
+    "test:client-enhancements": "node scripts/test-client-enhancements.js",
+    "test:stakeholder-deletion": "node --env-file=.env.local --import ./scripts/register-loader.js scripts/test-stakeholder-deletion.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

@@ -4,12 +4,25 @@ import { useState, useEffect } from "react";
 import Button from "@/components/ui/Button";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/Card";
 import Badge from "@/components/ui/Badge";
-import { UsersIcon, PlusIcon, CheckCircleIcon, AlertCircleIcon, SearchIcon, EditIcon } from "@/components/common/Icons";
+import {
+  UsersIcon,
+  PlusIcon,
+  CheckCircleIcon,
+  AlertCircleIcon,
+  SearchIcon,
+  EditIcon,
+  TrashIcon,
+} from "@/components/common/Icons";
+import PermanentDeleteStakeholderModal from "@/components/admin/PermanentDeleteStakeholderModal";
 
 const TYPE_CONFIG = {
   asha: {
     label: "ASHA Worker",
     badgeClass: "bg-emerald-100 text-emerald-800 border-emerald-200",
+  },
+  doctor: {
+    label: "Doctor / Medical Officer",
+    badgeClass: "bg-purple-100 text-purple-800 border-purple-200",
   },
   facility_staff: {
     label: "Facility Staff",
@@ -52,6 +65,10 @@ export default function StakeholderManager() {
   const [phone, setPhone] = useState("");
   const [designation, setDesignation] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Permanent Deletion state
+  const [stakeholderToDelete, setStakeholderToDelete] = useState(null);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
 
   // Pagination
   const [page, setPage] = useState(1);
@@ -352,6 +369,7 @@ export default function StakeholderManager() {
               >
                 <option value="">All Types</option>
                 <option value="asha">ASHA Worker</option>
+                <option value="doctor">Doctor</option>
                 <option value="facility_staff">Facility Staff</option>
                 <option value="government_official">Govt Official</option>
               </select>
@@ -533,6 +551,7 @@ export default function StakeholderManager() {
                         </td>
                         <td className="px-6 py-3.5 text-right space-x-2">
                           <button
+                            type="button"
                             onClick={() => openEditForm(stk)}
                             className="inline-flex items-center gap-1 text-slate-600 hover:text-emerald-700 font-medium text-xs transition-colors"
                           >
@@ -540,14 +559,16 @@ export default function StakeholderManager() {
                             <span>Edit</span>
                           </button>
                           <button
-                            onClick={() => toggleStatus(stk)}
-                            className={`font-medium text-xs transition-colors ${
-                              stk.status === "active"
-                                ? "text-rose-600 hover:text-rose-800"
-                                : "text-emerald-600 hover:text-emerald-800"
-                            }`}
+                            type="button"
+                            onClick={() => {
+                              setStakeholderToDelete(stk);
+                              setIsDeleteModalOpen(true);
+                            }}
+                            className="inline-flex items-center gap-1 text-rose-600 hover:text-rose-800 font-semibold text-xs transition-colors"
+                            title="Permanently Delete Stakeholder"
                           >
-                            {stk.status === "active" ? "Deactivate" : "Activate"}
+                            <TrashIcon className="w-3.5 h-3.5" />
+                            <span>Delete</span>
                           </button>
                         </td>
                       </tr>
@@ -636,6 +657,7 @@ export default function StakeholderManager() {
                     className="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-sm text-slate-900 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
                   >
                     <option value="asha">ASHA Worker</option>
+                    <option value="doctor">Doctor / Medical Officer</option>
                     <option value="facility_staff">Facility Staff</option>
                     <option value="government_official">Government Official</option>
                   </select>
@@ -754,6 +776,25 @@ export default function StakeholderManager() {
           </div>
         </div>
       )}
+
+      {/* Permanent Deletion Confirmation & Dependency Modal */}
+      <PermanentDeleteStakeholderModal
+        stakeholder={stakeholderToDelete}
+        isOpen={isDeleteModalOpen}
+        onClose={() => {
+          setIsDeleteModalOpen(false);
+          setStakeholderToDelete(null);
+        }}
+        onDeleted={(result) => {
+          setActionMessage(
+            result.message ||
+              `Stakeholder "${stakeholderToDelete?.fullName}" and dependent records were permanently deleted.`
+          );
+          setIsDeleteModalOpen(false);
+          setStakeholderToDelete(null);
+          fetchStakeholders();
+        }}
+      />
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth";
 import { getStakeholderById, updateStakeholder, toggleStakeholderStatus } from "@/services/masterDataService";
+import { permanentlyDeleteStakeholder } from "@/services/stakeholderDeletionService";
 
 export async function GET(request, context) {
   const auth = await requireAuth(["superadmin"]);
@@ -61,5 +62,54 @@ export async function PATCH(request, context) {
   } catch (error) {
     console.error("Toggle stakeholder status error:", error);
     return NextResponse.json({ success: false, error: "Failed to update stakeholder status" }, { status: 500 });
+  }
+}
+
+export async function DELETE(request, context) {
+  // Only Superadmin is authorized to permanently delete stakeholders
+  const auth = await requireAuth(["superadmin"]);
+  if (!auth.authorized) {
+    return NextResponse.json(
+      { success: false, error: auth.error || "Access denied. Superadmin privileges required." },
+      { status: auth.status || 403 }
+    );
+  }
+
+  try {
+    const { id } = await context.params;
+    const body = await request.json().catch(() => ({}));
+    const { reason = "", confirmation = "" } = body;
+
+    // Validate confirmation string
+    if (confirmation !== "DELETE") {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Permanent deletion requires typing 'DELETE' in the confirmation field.",
+        },
+        { status: 400 }
+      );
+    }
+
+    const result = await permanentlyDeleteStakeholder(
+      id,
+      { reason, confirmation },
+      auth.user
+    );
+
+    if (!result.success) {
+      return NextResponse.json(
+        { success: false, error: result.error },
+        { status: result.status || 400 }
+      );
+    }
+
+    return NextResponse.json(result, { status: 200 });
+  } catch (error) {
+    console.error("Delete stakeholder error:", error);
+    return NextResponse.json(
+      { success: false, error: "Failed to permanently delete stakeholder" },
+      { status: 500 }
+    );
   }
 }
