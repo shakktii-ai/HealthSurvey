@@ -177,45 +177,75 @@ export default function Sidebar({ isOpen, onClose }) {
 
         {/* Scrollable Navigation List — Independently Scrollable */}
         <div className="flex-1 overflow-y-auto overflow-x-hidden px-3.5 py-3 space-y-4">
-          {/* SUPERADMIN NAVIGATION: EXACTLY 4 SECTIONS */}
+          {/* SUPERADMIN NAVIGATION: DASHBOARD AT TOP + EXACTLY 4 SECTIONS */}
           {isSuperadmin && !isFieldWorker && !isDonor ? (
-            SUPERADMIN_SECTIONS.map((section) => (
-              <div key={section.id} className="space-y-1">
-                <div className="px-3 pt-2 pb-1 text-[10px] font-bold uppercase tracking-wider text-slate-400 select-none">
-                  {section.heading}
-                </div>
-                <nav className="space-y-0.5">
-                  {section.items.map((item) => {
-                    const Icon = item.icon;
-                    const active = isRouteActive(pathname, item.href);
-                    return (
-                      <Link
-                        key={item.href}
-                        href={item.href}
-                        onClick={onClose}
-                        className={`group flex items-center justify-between px-3 py-2 text-xs rounded-xl transition-all duration-150 ${
-                          active
-                            ? "bg-emerald-50/80 text-emerald-900 font-semibold border-l-[3px] border-emerald-600 shadow-2xs"
-                            : "text-slate-600 hover:text-slate-900 hover:bg-slate-100/70 font-medium border-l-[3px] border-transparent"
-                        }`}
-                      >
-                        <div className="flex items-center gap-2.5 truncate">
-                          <Icon
-                            className={`w-4 h-4 shrink-0 transition-colors ${
-                              active ? "text-emerald-600" : "text-slate-400 group-hover:text-slate-600"
-                            }`}
-                          />
-                          <span className="truncate">{item.name}</span>
-                        </div>
-                        {active && (
-                          <span className="h-1.5 w-1.5 rounded-full bg-emerald-600 shrink-0" />
-                        )}
-                      </Link>
-                    );
-                  })}
-                </nav>
+            <>
+              {/* Dashboard Link at the Top */}
+              <div className="space-y-0.5 pb-2 border-b border-slate-100">
+                <Link
+                  href="/admin/dashboard"
+                  onClick={onClose}
+                  className={`group flex items-center justify-between px-3 py-2 text-xs rounded-xl transition-all duration-150 ${
+                    isRouteActive(pathname, "/admin/dashboard") || pathname === "/"
+                      ? "bg-emerald-50/80 text-emerald-900 font-semibold border-l-[3px] border-emerald-600 shadow-2xs"
+                      : "text-slate-600 hover:text-slate-900 hover:bg-slate-100/70 font-medium border-l-[3px] border-transparent"
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5 truncate">
+                    <DashboardIcon
+                      className={`w-4 h-4 shrink-0 transition-colors ${
+                        isRouteActive(pathname, "/admin/dashboard") || pathname === "/"
+                          ? "text-emerald-600"
+                          : "text-slate-400 group-hover:text-slate-600"
+                      }`}
+                    />
+                    <span className="truncate font-semibold">Dashboard</span>
+                  </div>
+                  {(isRouteActive(pathname, "/admin/dashboard") || pathname === "/") && (
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-600 shrink-0" />
+                  )}
+                </Link>
               </div>
-            ))
+
+              {/* 4 Categorized Sections */}
+              {SUPERADMIN_SECTIONS.map((section) => (
+                <div key={section.id} className="space-y-1">
+                  <div className="px-3 pt-2 pb-1 text-[10px] font-bold uppercase tracking-wider text-slate-400 select-none">
+                    {section.heading}
+                  </div>
+                  <nav className="space-y-0.5">
+                    {section.items.map((item) => {
+                      const Icon = item.icon;
+                      const active = isRouteActive(pathname, item.href);
+                      return (
+                        <Link
+                          key={item.href}
+                          href={item.href}
+                          onClick={onClose}
+                          className={`group flex items-center justify-between px-3 py-2 text-xs rounded-xl transition-all duration-150 ${
+                            active
+                              ? "bg-emerald-50/80 text-emerald-900 font-semibold border-l-[3px] border-emerald-600 shadow-2xs"
+                              : "text-slate-600 hover:text-slate-900 hover:bg-slate-100/70 font-medium border-l-[3px] border-transparent"
+                          }`}
+                        >
+                          <div className="flex items-center gap-2.5 truncate">
+                            <Icon
+                              className={`w-4 h-4 shrink-0 transition-colors ${
+                                active ? "text-emerald-600" : "text-slate-400 group-hover:text-slate-600"
+                              }`}
+                            />
+                            <span className="truncate">{item.name}</span>
+                          </div>
+                          {active && (
+                            <span className="h-1.5 w-1.5 rounded-full bg-emerald-600 shrink-0" />
+                          )}
+                        </Link>
+                      );
+                    })}
+                  </nav>
+                </div>
+              ))}
+            </>
           ) : isFieldWorker ? (
             /* Field Worker Portal Navigation (Preserved) */
             <div className="space-y-4">
